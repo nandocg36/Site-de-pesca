@@ -1540,7 +1540,9 @@ function updateChart(labels, scores, seaNorm) {
           bodyColor: '#c5d4e8',
           borderColor: 'rgba(100, 140, 200, 0.25)',
           borderWidth: 1,
-          padding: 12,
+          padding: 14,
+          titleFont: { size: 15 },
+          bodyFont: { size: 14 },
           cornerRadius: 10,
           callbacks: {
             label(ctx) {
@@ -1553,21 +1555,27 @@ function updateChart(labels, scores, seaNorm) {
       },
       scales: {
         x: {
-          ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 14, color: tickColor },
+          ticks: {
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 14,
+            color: tickColor,
+            font: { size: 13 },
+          },
           grid: { color: gridColor },
         },
         y: {
           min: 0,
           max: 100,
-          title: { display: true, text: 'Índice', color: tickColor, font: { size: 11 } },
-          ticks: { color: tickColor },
+          title: { display: true, text: 'Índice', color: tickColor, font: { size: 14 } },
+          ticks: { color: tickColor, font: { size: 13 } },
           grid: { color: gridColor },
         },
         y1: {
           position: 'right',
           min: 0,
           max: 1,
-          title: { display: true, text: 'Maré', color: '#e8c86a', font: { size: 11 } },
+          title: { display: true, text: 'Maré', color: '#e8c86a', font: { size: 14 } },
           ticks: { display: false },
           grid: { drawOnChartArea: false },
         },

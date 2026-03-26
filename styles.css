@@ -37,6 +37,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-tap-highlight-color: rgba(94, 184, 255, 0.15);
+  /* ~19px: melhor leitura para utilizadores mais velhos (1rem escala com as preferências do sistema) */
+  font-size: 118.75%;
 }
 
 body {
@@ -50,8 +52,8 @@ body {
     radial-gradient(ellipse 50% 40% at 0% 80%, rgba(30, 120, 100, 0.1) 0%, transparent 40%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 45%, var(--bg-void) 100%);
   color: var(--text);
-  line-height: 1.55;
-  font-size: 16px;
+  line-height: 1.62;
+  font-size: 1rem;
 }
 
 .noise {
@@ -74,7 +76,7 @@ a:hover {
 }
 
 .app {
-  max-width: 920px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 0 max(1rem, env(safe-area-inset-left)) calc(2.5rem + env(safe-area-inset-bottom, 0))
     max(1rem, env(safe-area-inset-right));
@@ -107,9 +109,9 @@ a:hover {
 
 .btn-refresh-live {
   flex-shrink: 0;
-  min-height: 44px;
-  padding: 0.55rem 1rem;
-  font-size: 0.88rem;
+  min-height: 52px;
+  padding: 0.65rem 1.15rem;
+  font-size: 1.02rem;
 }
 
 .live-weather-grid {
@@ -128,16 +130,16 @@ a:hover {
 
 .live-weather-k {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--muted);
   margin-bottom: 0.2rem;
 }
 
 .live-weather-v {
-  font-size: 0.95rem;
+  font-size: 1.08rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -151,8 +153,8 @@ a:hover {
   padding: 0.85rem 1rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 1.02rem;
+  line-height: 1.58;
 }
 
 .live-alert ul {
@@ -214,14 +216,14 @@ a:hover {
 .brand-name {
   font-family: var(--font-brand);
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 1.08rem;
   letter-spacing: 0.02em;
   color: var(--text);
 }
 
 .brand-tag {
   font-family: var(--font-brand);
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   font-weight: 500;
   color: var(--muted);
   letter-spacing: 0.04em;
@@ -242,9 +244,9 @@ a:hover {
 .hero-kicker {
   margin: 0 0 0.85rem;
   font-family: var(--font-brand);
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 600;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(124, 240, 212, 0.95);
 }
@@ -261,7 +263,7 @@ a:hover {
 
 .hero-welcome-place {
   display: block;
-  font-size: clamp(1.45rem, 5.2vw, 2rem);
+  font-size: clamp(1.65rem, 5.8vw, 2.35rem);
   font-weight: 700;
   background: linear-gradient(118deg, #fff 0%, #d4eeff 42%, #9ef0e0 100%);
   -webkit-background-clip: text;
@@ -273,7 +275,7 @@ a:hover {
 .hero-welcome-msg {
   display: block;
   margin-top: 0.35rem;
-  font-size: clamp(1.05rem, 3.8vw, 1.35rem);
+  font-size: clamp(1.2rem, 4.2vw, 1.55rem);
   font-weight: 500;
   font-style: italic;
   color: rgba(240, 244, 252, 0.92);
@@ -282,8 +284,8 @@ a:hover {
 .hero-lead {
   margin: 0;
   color: var(--muted);
-  font-size: 1rem;
-  max-width: 34rem;
+  font-size: 1.12rem;
+  max-width: 36rem;
   margin-inline: auto;
 }
 
@@ -298,7 +300,7 @@ a:hover {
 
 .fixed-loc-title {
   margin: 0 0 0.35rem;
-  font-size: 1.05rem;
+  font-size: 1.18rem;
 }
 
 .fixed-loc-coords {
@@ -320,9 +322,9 @@ a:hover {
 }
 
 .section-eyebrow {
-  font-size: 0.65rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
   margin-bottom: 0.45rem;
@@ -338,7 +340,7 @@ a:hover {
   -webkit-backdrop-filter: blur(var(--blur-glass));
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.25rem 1.35rem;
+  padding: 1.4rem 1.45rem;
   margin-top: 1rem;
   box-shadow: var(--shadow-soft);
   transition: border-color 0.2s ease, box-shadow 0.25s ease;
@@ -373,7 +375,7 @@ a:hover {
 .card-title {
   margin: 0 0 0.55rem;
   font-family: var(--font-display);
-  font-size: 1.12rem;
+  font-size: 1.35rem;
   font-weight: 600;
   font-style: italic;
   font-variation-settings: "SOFT" 35, "WONK" 0.85;
@@ -383,16 +385,16 @@ a:hover {
 
 .card-hint {
   margin: 0 0 1rem;
-  font-size: 0.88rem;
-  line-height: 1.5;
+  font-size: 1.02rem;
+  line-height: 1.55;
 }
 
 .field-label {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--muted);
   margin-bottom: 0.4rem;
 }
@@ -426,13 +428,13 @@ a:hover {
 }
 
 .btn {
-  min-height: 48px;
-  padding: 0.75rem 1.2rem;
+  min-height: 52px;
+  padding: 0.8rem 1.3rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: rgba(12, 20, 38, 0.8);
   color: var(--text);
-  font-size: 0.92rem;
+  font-size: 1.05rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -487,7 +489,7 @@ a:hover {
   border-radius: var(--radius-sm);
   background: linear-gradient(100deg, rgba(94, 184, 255, 0.15), rgba(124, 240, 212, 0.08));
   border: 1px solid rgba(94, 184, 255, 0.3);
-  font-size: 0.9rem;
+  font-size: 1.02rem;
 }
 
 .map-banner-icon {
@@ -644,8 +646,8 @@ a:hover {
 
 .location-label {
   margin-top: 0.85rem;
-  font-size: 0.9rem;
-  line-height: 1.45;
+  font-size: 1.02rem;
+  line-height: 1.5;
 }
 
 .muted {
@@ -653,7 +655,8 @@ a:hover {
 }
 
 .small {
-  font-size: 0.82rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
 }
 
 .error {
@@ -663,6 +666,8 @@ a:hover {
   background: rgba(255, 90, 90, 0.1);
   border: 1px solid rgba(255, 120, 120, 0.45);
   color: #ffd4d4;
+  font-size: 1.05rem;
+  line-height: 1.5;
 }
 
 .loading {
@@ -671,6 +676,7 @@ a:hover {
   gap: 0.85rem;
   margin-top: 1.25rem;
   color: var(--muted);
+  font-size: 1.05rem;
 }
 
 .spinner {
@@ -745,11 +751,11 @@ a:hover {
 
 .verdict-box {
   margin: 1rem 0;
-  padding: 1.1rem 1.2rem;
+  padding: 1.15rem 1.25rem;
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.22);
   border: 1px solid var(--border);
-  font-size: 0.98rem;
+  font-size: 1.1rem;
   line-height: 1.65;
 }
 
@@ -776,10 +782,10 @@ a:hover {
 
 .index-weights-title {
   font-family: var(--font-display);
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: var(--muted);
   margin: 0 0 0.75rem;
 }
@@ -797,12 +803,12 @@ a:hover {
 }
 
 .weight-label {
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   color: var(--text);
 }
 
 .weight-pct {
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--accent-2);
   font-variant-numeric: tabular-nums;
@@ -825,9 +831,9 @@ a:hover {
 
 .index-weights-foot {
   margin: 0.75rem 0 0;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .index-weights.menu-weights-inner {
@@ -862,8 +868,8 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
 }
 
@@ -959,13 +965,13 @@ body.drawer-open {
 .drawer-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: 1.38rem;
   font-weight: 700;
 }
 
 .drawer-close {
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 52px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: rgba(12, 20, 38, 0.6);
@@ -1001,13 +1007,13 @@ body.drawer-open {
 
 .drawer-nav-btn {
   text-align: left;
-  padding: 0.65rem 0.85rem;
+  padding: 0.75rem 0.95rem;
   border-radius: var(--radius-xs);
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: 1.02rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
@@ -1043,7 +1049,7 @@ body.drawer-open {
 .drawer-panel-title {
   margin: 0 0 0.75rem;
   font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 700;
 }
 
@@ -1068,23 +1074,23 @@ body.drawer-open {
 .subcard-title {
   margin: 0 0 0.45rem;
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: 1.15rem;
   font-weight: 700;
 }
 
 .tide-sub {
   margin: 0.65rem 0 0.25rem;
-  font-size: 0.7rem;
+  font-size: 0.82rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--muted);
 }
 
 .tide-ul {
   margin: 0 0 0.35rem;
   padding-left: 1.15rem;
-  font-size: 0.88rem;
+  font-size: 1.02rem;
 }
 
 .tide-table-wrap {
@@ -1095,12 +1101,12 @@ body.drawer-open {
 .tide-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.86rem;
+  font-size: 1rem;
 }
 
 .tide-table th,
 .tide-table td {
-  padding: 0.5rem 0.65rem;
+  padding: 0.6rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
@@ -1108,9 +1114,9 @@ body.drawer-open {
 .tide-table th {
   color: var(--muted);
   font-weight: 600;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .tide-table-official {
@@ -1124,8 +1130,8 @@ body.drawer-open {
 
 .period-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
   margin-top: 0.85rem;
 }
 
@@ -1143,23 +1149,23 @@ body.drawer-open {
 }
 
 .period-card .period-name {
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: var(--muted);
   margin-bottom: 0.35rem;
 }
 
 .period-card .period-grade {
   font-family: var(--font-display);
-  font-size: 1.08rem;
+  font-size: 1.22rem;
   font-weight: 700;
   margin-bottom: 0.25rem;
 }
 
 .period-card .period-detail {
-  font-size: 0.82rem;
+  font-size: 0.95rem;
   color: var(--muted);
 }
 
@@ -1184,11 +1190,11 @@ body.drawer-open {
 }
 
 .window-line {
-  padding: 0.7rem 0.95rem;
+  padding: 0.75rem 1rem;
   border-radius: var(--radius-sm);
   background: rgba(0, 0, 0, 0.18);
   border-left: 3px solid var(--good);
-  font-size: 0.9rem;
+  font-size: 1.02rem;
 }
 
 .window-line.window-poor {
@@ -1203,22 +1209,22 @@ body.drawer-open {
 }
 
 .day-picker-row label {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--muted);
 }
 
 .day-select {
   flex: 1;
-  min-height: 48px;
-  padding: 0.65rem 0.85rem;
+  min-height: 52px;
+  padding: 0.7rem 0.95rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: rgba(8, 14, 28, 0.65);
   color: var(--text);
-  font-size: 16px;
+  font-size: 1.08rem;
   font-family: inherit;
 }
 
@@ -1241,16 +1247,16 @@ body.drawer-open {
 }
 
 .summary-cell .label {
-  font-size: 0.65rem;
+  font-size: 0.78rem;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.05em;
   font-weight: 600;
 }
 
 .summary-cell .value {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 1.18rem;
   font-weight: 700;
   margin-top: 0.25rem;
 }
@@ -1259,14 +1265,14 @@ body.drawer-open {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 1.02rem;
+  line-height: 1.58;
 }
 
 .chart-wrap {
   position: relative;
-  height: min(260px, 48vw);
-  min-height: 200px;
+  height: min(300px, 52vw);
+  min-height: 240px;
   margin-top: 0.9rem;
 }
 
@@ -1275,7 +1281,7 @@ body.drawer-open {
   flex-wrap: wrap;
   gap: 1.15rem;
   margin-top: 0.6rem;
-  font-size: 0.76rem;
+  font-size: 0.9rem;
   color: var(--muted);
 }
 
@@ -1317,7 +1323,8 @@ body.drawer-open {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.5rem;
-  padding: 0.85rem 1rem;
+  padding: 0.95rem 1.1rem;
+  font-size: 1.05rem;
   background: rgba(0, 0, 0, 0.12);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -1334,9 +1341,9 @@ body.drawer-open {
 }
 
 .forecast-item .score-pill {
-  padding: 0.28rem 0.7rem;
+  padding: 0.35rem 0.8rem;
   border-radius: 999px;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
@@ -1364,7 +1371,7 @@ body.drawer-open {
 }
 
 .hourly-sort-label {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
@@ -1372,7 +1379,9 @@ body.drawer-open {
 }
 
 .hourly-sort-select {
-  max-width: 280px;
+  max-width: 320px;
+  min-height: 52px;
+  font-size: 1.08rem;
 }
 
 .hourly-list {
@@ -1419,10 +1428,10 @@ body.drawer-open {
 .hourly-time {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.08rem;
+  font-size: 1.22rem;
   letter-spacing: -0.02em;
   color: var(--text);
-  min-width: 3.2rem;
+  min-width: 3.6rem;
 }
 
 .hourly-meta {
@@ -1435,10 +1444,10 @@ body.drawer-open {
 
 .hourly-metrics {
   grid-column: 1 / -1;
-  line-height: 1.5;
+  line-height: 1.55;
   padding: 0.4rem 0 0;
   font-family: ui-monospace, ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.78rem;
+  font-size: 0.92rem;
 }
 
 @media (min-width: 480px) {
@@ -1457,12 +1466,12 @@ body.drawer-open {
 
 .hourly-badge {
   display: inline-block;
-  padding: 0.22rem 0.6rem;
+  padding: 0.28rem 0.7rem;
   border-radius: 999px;
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .hourly-badge.b-good {
@@ -1481,15 +1490,15 @@ body.drawer-open {
 }
 
 .hourly-score {
-  font-size: 0.85rem;
+  font-size: 0.98rem;
   font-weight: 600;
   color: var(--muted);
 }
 
 .hourly-why {
   grid-column: 1 / -1;
-  font-size: 0.84rem;
-  line-height: 1.55;
+  font-size: 0.98rem;
+  line-height: 1.58;
   color: var(--text);
   margin: 0;
   padding-top: 0.45rem;
@@ -1516,8 +1525,8 @@ body.drawer-open {
   padding-top: 1.5rem;
   border-top: 1px solid var(--border);
   text-align: center;
-  font-size: 0.74rem;
-  line-height: 1.65;
+  font-size: 0.92rem;
+  line-height: 1.68;
   color: var(--muted);
 }
 
