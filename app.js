@@ -23,9 +23,14 @@ const MET_HEADERS = {
 const state = {
   chart: null,
   scoreDetails: null,
+  /** @type {number | null} */
+  liveWeatherTimer: null,
   /** @type {{ aligned: object, scores: number[], scoreDetails: object[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string, lat: number, lon: number } | null} */
   bundle: null,
 };
+
+/** Atualização do bloco “tempo agora” (modelo ~15 min + nova leitura). */
+const LIVE_WEATHER_REFRESH_MS = 10 * 60 * 1000;
 
 const $ = (id) => document.getElementById(id);
 
@@ -88,6 +93,7 @@ async function loadMarine(lat, lon, timezone) {
 async function loadForecast(lat, lon, timezone) {
   const hourly = [
     'temperature_2m',
+    'apparent_temperature',
     'pressure_msl',
     'is_day',
     'wind_speed_10m',
@@ -97,11 +103,29 @@ async function loadForecast(lat, lon, timezone) {
     'precipitation_probability',
     'relative_humidity_2m',
     'cloud_cover',
+    'weather_code',
+    'cape',
+  ].join(',');
+  const current = [
+    'temperature_2m',
+    'relative_humidity_2m',
+    'apparent_temperature',
+    'precipitation',
+    'rain',
+    'showers',
+    'weather_code',
+    'cloud_cover',
+    'pressure_msl',
+    'wind_speed_10m',
+    'wind_direction_10m',
+    'wind_gusts_10m',
+    'is_day',
   ].join(',');
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
     hourly,
+    current,
     forecast_days: '8',
     timezone,
     wind_speed_unit: 'kmh',
@@ -269,6 +293,8 @@ function alignByTime(marine, forecast) {
   const rainProb = [];
   const rh = [];
   const cloud = [];
+  const weatherCode = [];
+  const cape = [];
   for (let i = 0; i < mt.length; i++) {
     const t = mt[i];
     const j = idxF.get(t);
@@ -288,8 +314,10 @@ function alignByTime(marine, forecast) {
     rainProb.push(forecast.hourly.precipitation_probability?.[j] ?? null);
     rh.push(forecast.hourly.relative_humidity_2m?.[j] ?? null);
     cloud.push(forecast.hourly.cloud_cover?.[j] ?? null);
+    weatherCode.push(forecast.hourly.weather_code?.[j] ?? null);
+    cape.push(forecast.hourly.cape?.[j] ?? null);
   }
-  return { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud };
+  return { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud, weatherCode, cape };
 }
 
 function normalize(arr, invert = false) {
@@ -424,8 +452,25 @@ function hourOverlapsSolunar(tMs, windows) {
 }
 
 function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
-  const { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud } =
-    aligned;
+  const {
+    times,
+    sea,
+    sst,
+    wave,
+    temp,
+    press,
+    isDay,
+    wind,
+    gust,
+    windDir,
+    rain,
+    rainProb,
+    rh,
+    cloud,
+    weatherCode,
+    cape,
+  } = aligned;
+  const wcodes = weatherCode || [];
   const n = times.length;
   const tideTurn = new Array(n).fill(0);
   const tideSpeed = new Array(n).fill(0);
@@ -543,6 +588,8 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
       waveM: wave[i],
       solMajorLabel: solMajor,
       solMinorLabel: solMinor,
+      weatherCode: wcodes[i] ?? null,
+      weatherDesc: wcodes[i] != null ? weatherCodeLabel(wcodes[i]) : null,
     });
   }
 
@@ -593,6 +640,283 @@ function formatHourLabel(isoLocal) {
   const d = new Date(isoLocal);
   if (Number.isNaN(d.getTime())) return isoLocal.slice(11, 16);
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** WMO weather_code (Open-Meteo) — descrição curta em pt-BR. */
+function weatherCodeLabel(code) {
+  if (code == null || !Number.isFinite(code)) return '—';
+  const c = Math.round(code);
+  const map = {
+    0: 'Céu limpo',
+    1: 'Pred. limpo',
+    2: 'Parcialmente nublado',
+    3: 'Nublado',
+    45: 'Neblina',
+    48: 'Neblina com geada',
+    51: 'Garoa leve',
+    53: 'Garoa',
+    55: 'Garoa forte',
+    56: 'Garoa congelante',
+    57: 'Garoa congelante forte',
+    61: 'Chuva fraca',
+    63: 'Chuva moderada',
+    65: 'Chuva forte',
+    66: 'Chuva congelante',
+    67: 'Chuva congelante forte',
+    71: 'Neve fraca',
+    73: 'Neve moderada',
+    75: 'Neve forte',
+    77: 'Grãos de neve',
+    80: 'Pancadas de chuva',
+    81: 'Pancadas moderadas',
+    82: 'Pancadas fortes / violentas',
+    85: 'Pancadas de neve',
+    86: 'Pancadas de neve fortes',
+    95: 'Trovoada',
+    96: 'Trovoada com granizo leve',
+    99: 'Trovoada com granizo forte',
+  };
+  return map[c] || `Condição (${c})`;
+}
+
+function isThunderWeatherCode(c) {
+  return c === 95 || c === 96 || c === 99;
+}
+
+/**
+ * Avisos a partir do modelo numérico (não são alertas oficiais do INMET).
+ * Varre as próximas horas do alinhamento mar+previsão.
+ */
+function collectSevereWeatherAlerts(aligned, maxHours = 48) {
+  const items = [];
+  const seen = new Set();
+  const push = (level, text) => {
+    const k = `${level}:${text}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    items.push({ level, text });
+  };
+
+  const { times, gust, rain, weatherCode, cape: capeSeries } = aligned;
+  const wcodes = weatherCode || [];
+  const capeArr = capeSeries || [];
+  const n = Math.min(times.length, maxHours);
+
+  for (let i = 0; i < n; i++) {
+    const t = times[i];
+    const labelH = formatHourLabel(t);
+    const g = gust[i];
+    const r = rain[i];
+    const wc = wcodes[i] != null && Number.isFinite(wcodes[i]) ? Math.round(wcodes[i]) : null;
+    const cape = capeArr[i];
+
+    if (wc != null && isThunderWeatherCode(wc)) {
+      push(
+        'critical',
+        `${labelH}: risco de <strong>temporal / trovoada</strong> no modelo (${weatherCodeLabel(wc)}). Evite área aberta na água e parafusos altos.`
+      );
+    } else if (wc === 82) {
+      push(
+        'critical',
+        `${labelH}: <strong>pancadas de chuva muito fortes</strong> no modelo — risco de temporal.`
+      );
+    }
+
+    if (g != null && Number.isFinite(g) && g >= 75) {
+      push('critical', `${labelH}: <strong>rajadas muito fortes</strong> (~${Math.round(g)} km/h) no modelo.`);
+    } else if (g != null && Number.isFinite(g) && g >= 55) {
+      push('warning', `${labelH}: <strong>rajadas fortes</strong> (~${Math.round(g)} km/h) no modelo.`);
+    }
+
+    if (r != null && Number.isFinite(r) && r >= 20) {
+      push('critical', `${labelH}: <strong>chuva volumosa</strong> (~${r.toFixed(1)} mm/h) no modelo — risco de alagamento e visibilidade ruim.`);
+    } else if (r != null && Number.isFinite(r) && r >= 10) {
+      push('warning', `${labelH}: chuva <strong>moderada a forte</strong> (~${r.toFixed(1)} mm/h) no modelo.`);
+    }
+
+    if (wc === 65 || wc === 86) {
+      push('warning', `${labelH}: <strong>precipitação forte</strong> no modelo (${weatherCodeLabel(wc)}).`);
+    }
+
+    if (cape != null && Number.isFinite(cape) && cape >= 2500 && wc != null && wc >= 61 && wc <= 82) {
+      push('warning', `${labelH}: <strong>instabilidade alta</strong> no modelo (energia de convecção elevada) — atenção a trovoadas.`);
+    }
+  }
+
+  let topLevel = 'ok';
+  for (const it of items) {
+    if (it.level === 'critical') {
+      topLevel = 'critical';
+      break;
+    }
+    if (it.level === 'warning') topLevel = 'warning';
+  }
+  return { topLevel, items };
+}
+
+function formatCurrentTimeNote(forecast) {
+  const cur = forecast?.current;
+  if (!cur?.time) return '';
+  try {
+    const d = new Date(cur.time);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch (_) {
+    return '';
+  }
+}
+
+function renderLiveWeatherPanel(forecast, aligned) {
+  const wrap = $('liveWeatherBlock');
+  const alertsEl = $('liveWeatherAlerts');
+  const gridEl = $('liveWeatherGrid');
+  const metaEl = $('liveWeatherMeta');
+  if (!wrap || !alertsEl || !gridEl || !metaEl) return;
+
+  const cur = forecast?.current;
+  const h = forecast?.hourly;
+  const fallbackIdx = h?.time?.length ? 0 : -1;
+
+  const temp =
+    cur?.temperature_2m ??
+    (fallbackIdx >= 0 ? h.temperature_2m?.[fallbackIdx] : null);
+  const feels =
+    cur?.apparent_temperature ??
+    (fallbackIdx >= 0 ? h.apparent_temperature?.[fallbackIdx] : null);
+  const rh =
+    cur?.relative_humidity_2m ??
+    (fallbackIdx >= 0 ? h.relative_humidity_2m?.[fallbackIdx] : null);
+  const code =
+    cur?.weather_code ??
+    (fallbackIdx >= 0 ? h.weather_code?.[fallbackIdx] : null);
+  const cloud =
+    cur?.cloud_cover ?? (fallbackIdx >= 0 ? h.cloud_cover?.[fallbackIdx] : null);
+  const pr =
+    cur?.pressure_msl ?? (fallbackIdx >= 0 ? h.pressure_msl?.[fallbackIdx] : null);
+  const wind =
+    cur?.wind_speed_10m ?? (fallbackIdx >= 0 ? h.wind_speed_10m?.[fallbackIdx] : null);
+  const gust =
+    cur?.wind_gusts_10m ?? (fallbackIdx >= 0 ? h.wind_gusts_10m?.[fallbackIdx] : null);
+  const wdir =
+    cur?.wind_direction_10m ?? (fallbackIdx >= 0 ? h.wind_direction_10m?.[fallbackIdx] : null);
+  const rain =
+    cur?.precipitation ?? (fallbackIdx >= 0 ? h.precipitation?.[fallbackIdx] : null);
+
+  const { topLevel, items } = collectSevereWeatherAlerts(aligned, 48);
+
+  alertsEl.className = 'live-weather-alerts';
+  if (!items.length) {
+    alertsEl.innerHTML =
+      '<p class="live-alert live-alert-ok muted small">Nenhum sinal forte de temporal nas próximas ~48 h no <strong>modelo numérico</strong>. Ainda assim acompanhe o <a href="https://alertas2.inmet.gov.br/" target="_blank" rel="noopener">INMET</a> e condições locais.</p>';
+  } else {
+    const cls =
+      topLevel === 'critical' ? 'live-alert-critical' : topLevel === 'warning' ? 'live-alert-warn' : 'live-alert-watch';
+    alertsEl.innerHTML = `<div class="live-alert ${cls}" role="status"><strong>Aviso do modelo</strong> (não é alerta oficial):<ul class="live-alert-list">${items
+      .slice(0, 8)
+      .map((it) => `<li>${it.text}</li>`)
+      .join('')}</ul>${
+      items.length > 8 ? `<p class="muted small">+${items.length - 8} outros indícios nas próximas horas.</p>` : ''
+    }</div>`;
+  }
+
+  const cells = [];
+  if (temp != null && Number.isFinite(temp)) {
+    cells.push(['Temperatura', `${temp.toFixed(1)} °C`]);
+  }
+  if (feels != null && Number.isFinite(feels)) {
+    cells.push(['Sensação', `${feels.toFixed(1)} °C`]);
+  }
+  cells.push(['Céu / tempo', weatherCodeLabel(code)]);
+  if (rh != null && Number.isFinite(rh)) {
+    cells.push(['Umidade', `${Math.round(rh)} %`]);
+  }
+  if (cloud != null && Number.isFinite(cloud)) {
+    cells.push(['Nuvens', `${Math.round(cloud)} %`]);
+  }
+  if (pr != null && Number.isFinite(pr)) {
+    cells.push(['Pressão (mar)', `${Math.round(pr)} hPa`]);
+  }
+  if (wind != null && Number.isFinite(wind)) {
+    const dir = compassPt(wdir);
+    const d = dir ? ` ${dir}` : '';
+    cells.push(['Vento', `${Math.round(wind)} km/h${d}`]);
+  }
+  if (gust != null && Number.isFinite(gust)) {
+    cells.push(['Rajadas', `${Math.round(gust)} km/h`]);
+  }
+  if (rain != null && Number.isFinite(rain) && rain > 0) {
+    cells.push(['Chuva (últ. intervalo)', `${rain.toFixed(1)} mm`]);
+  }
+
+  gridEl.innerHTML = cells
+    .map(
+      ([k, v]) =>
+        `<div class="live-weather-cell"><span class="live-weather-k">${k}</span><span class="live-weather-v">${v}</span></div>`
+    )
+    .join('');
+
+  const when = formatCurrentTimeNote(forecast);
+  metaEl.innerHTML = when
+    ? `<span class="muted small">Condições atuais do modelo (Open-Meteo), referência ~${when}. Atualiza ao recarregar ou ao tocar em Atualizar.</span>`
+    : '<span class="muted small">Dados do modelo Open-Meteo (sem leitura de estação local).</span>';
+}
+
+async function refreshLiveWeatherSnapshot() {
+  const b = state.bundle;
+  if (!b || b.lat == null || b.lon == null || !b.tz || !b.marine) return;
+  try {
+    const forecast = await loadForecast(b.lat, b.lon, b.tz);
+    const aligned = alignByTime(b.marine, forecast);
+    const epMap = b.epagriExtremesByDate;
+    const modelSea = aligned.sea.slice();
+    aligned.sea = buildEffectiveSeaLevels(aligned.times, modelSea, epMap);
+    b.forecast = forecast;
+    state.bundle.aligned = aligned;
+    const inland = b.isInland;
+    const { scores, details: scoreDetails } = computeHourlyScoresDetailed(
+      b.lat,
+      b.lon,
+      aligned,
+      b.astroByDay,
+      inland
+    );
+    b.scores = scores;
+    b.scoreDetails = scoreDetails;
+    state.scoreDetails = scoreDetails;
+    b.dayData = groupByDay(aligned.times, scores, aligned.sea);
+    const daySelect = $('daySelect');
+    const prevDay = daySelect?.value;
+    fillDaySelect(b.dayData, prevDay || b.dayData[0]?.date);
+    if (prevDay && daySelect && [...daySelect.options].some((o) => o.value === prevDay)) {
+      daySelect.value = prevDay;
+    }
+    const dateKey = daySelect?.value || b.dayData[0]?.date;
+    if (dateKey) {
+      const dayRow = b.dayData.find((d) => d.date === dateKey);
+      const dayAvg = dayRow?.avgScore ?? 0;
+      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland, b.astroByDay, aligned);
+      renderSummary(b.dayData, { lat: b.lat, lon: b.lon, timezone: b.tz }, dateKey, b.astroByDay, b.marineMeta);
+      const { labels, scores: sc, seaNorm } = sliceDay(aligned.times, scores, aligned.sea, dateKey);
+      updateChart(labels, sc, seaNorm);
+      renderHourlyList(dateKey, aligned.times, scores, scoreDetails, inland);
+    }
+    renderForecastList(b.dayData);
+    renderLiveWeatherPanel(forecast, aligned);
+  } catch (_) {
+    /* mantém último estado */
+  }
+}
+
+function startLiveWeatherUpdates() {
+  if (state.liveWeatherTimer != null) clearInterval(state.liveWeatherTimer);
+  state.liveWeatherTimer = window.setInterval(() => {
+    refreshLiveWeatherSnapshot();
+  }, LIVE_WEATHER_REFRESH_MS);
 }
 
 function hourQualityWords(score) {
@@ -673,6 +997,14 @@ function buildHourExplanations(detail, isInland) {
     lines.push('Temperatura da superfície do mar disponível no modelo para esta célula.');
   }
 
+  if (detail.weatherDesc && detail.weatherDesc !== '—') {
+    if (detail.weatherCode != null && isThunderWeatherCode(Math.round(detail.weatherCode))) {
+      lines.push(`Tempo no modelo: <strong>${detail.weatherDesc}</strong> — atenção a raios e vento forte.`);
+    } else {
+      lines.push(`Tempo no modelo: ${detail.weatherDesc}.`);
+    }
+  }
+
   return lines;
 }
 
@@ -699,6 +1031,9 @@ function formatMetricHour(detail, isInland) {
   }
   if (detail.cloudPct != null && Number.isFinite(detail.cloudPct)) {
     parts.push(`Nuvens ${Math.round(detail.cloudPct)} %`);
+  }
+  if (detail.weatherDesc && detail.weatherDesc !== '—') {
+    parts.push(detail.weatherDesc);
   }
   return parts.length ? parts.join(' · ') : '—';
 }
@@ -1305,6 +1640,7 @@ async function loadFixedLocation() {
     state.bundle = {
       aligned,
       modelSea,
+      marine,
       epagriExtremesByDate: epagriByDate,
       epagriMeta: epagriPayload
         ? { source: epagriPayload.source, year: epagriPayload.year, location: epagriPayload.location }
@@ -1345,6 +1681,8 @@ async function loadFixedLocation() {
     $('daySelect').onchange = () => renderForDate($('daySelect').value);
     renderForDate($('daySelect').value);
     renderForecastList(dayData);
+    renderLiveWeatherPanel(forecast, aligned);
+    startLiveWeatherUpdates();
 
     $('mainContent').classList.remove('hidden');
   } catch (e) {
@@ -1422,6 +1760,20 @@ $('hourlySort').addEventListener('change', () => {
   const b = state.bundle;
   if (!b) return;
   renderHourlyList($('daySelect').value, b.aligned.times, b.scores, b.scoreDetails, b.isInland);
+});
+
+$('btnRefreshLiveWeather')?.addEventListener('click', () => {
+  const btn = $('btnRefreshLiveWeather');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '…';
+  }
+  refreshLiveWeatherSnapshot().finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Atualizar';
+    }
+  });
 });
 
 loadFixedLocation();

@@ -50,6 +50,25 @@
     </section>
 
     <main id="mainContent" class="hidden main-stack">
+      <section class="card card-elevated card-glass live-weather-card" id="liveWeatherBlock" aria-label="Tempo agora e avisos">
+        <div class="live-weather-head">
+          <div>
+            <div class="section-eyebrow">Ao vivo</div>
+            <h2 class="card-title">Tempo agora</h2>
+          </div>
+          <button type="button" class="btn btn-refresh-live" id="btnRefreshLiveWeather" title="Atualizar previsão e condições atuais">
+            Atualizar
+          </button>
+        </div>
+        <p class="muted small" id="liveWeatherMeta"></p>
+        <div id="liveWeatherAlerts" class="live-weather-alerts" aria-live="polite"></div>
+        <div class="live-weather-grid" id="liveWeatherGrid"></div>
+        <p class="muted small live-weather-footnote">
+          Os avisos de temporal vêm do <strong>modelo numérico</strong> (Open-Meteo), não dos alertas oficiais do INMET. Para decisões de segurança, use também
+          <a href="https://alertas2.inmet.gov.br/" target="_blank" rel="noopener">alertas do INMET</a> e a defesa civil local.
+        </p>
+      </section>
+
       <section class="card card-elevated highlight-card card-glow" id="recommendations" aria-label="Recomendações do dia">
         <div class="section-eyebrow section-eyebrow-accent">Hoje</div>
         <h2 class="card-title">Recomendações do dia</h2>
