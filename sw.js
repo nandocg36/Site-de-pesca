@@ -1,4 +1,4 @@
-const CACHE = 'pesca-v1';
+const CACHE = 'pesca-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -29,7 +29,9 @@ function isApi(url) {
     url.hostname.includes('open-meteo.com') ||
     url.hostname.includes('geocoding-api.open-meteo.com') ||
     url.hostname.includes('api.open-meteo.com') ||
-    url.hostname.includes('marine-api.open-meteo.com')
+    url.hostname.includes('marine-api.open-meteo.com') ||
+    url.hostname === 'api.met.no' ||
+    url.hostname === 'nominatim.openstreetmap.org'
   );
 }
 

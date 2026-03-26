@@ -42,13 +42,13 @@
         <div class="accordion-panel hidden" id="metricsPanel">
           <ul class="metric-list">
             <li><strong>Maré (movimento)</strong> — derivado da variação hora a hora do nível do mar (modelo Open-Meteo). Picos de enchente ou vazante costumam concentrar peixes; damos mais pontos próximo desses máximos/mínimos locais. <em>Aviso:</em> não substitui tábua náutica oficial.</li>
-            <li><strong>Lua (iluminação + fase)</strong> — tradição <em>solunar</em>: períodos em torno da lua cheia/nova e maior iluminação noturna são frequentemente associados a maior atividade. Usamos iluminação real da fase lunar no local.</li>
-            <li><strong>Sol (altura)</strong> — nascer, pôr do sol e altura no céu (trigonometria). Crepúsculos e “major/minor periods” aproximados alinham-se com janelas curtas de picos combinados com lua.</li>
+            <li><strong>Lua (fase e eventos)</strong> — tradição <em>solunar</em>: lua nova/cheia e janelas em torno do nascer/pôr da lua. Valores vindos da API <a href="https://api.met.no/weatherapi/sunrise/3.0/documentation" target="_blank" rel="noopener">Sunrise 3.0 (MET Norway)</a> (ephemerides), com fase em % e horários locais.</li>
+            <li><strong>Sol (eventos do dia)</strong> — nascer, pôr e meio-dia solar da mesma API MET Norway; o índice privilegia proximidade do crepúsculo/nascer/pôr em relação ao meio-dia solar.</li>
             <li><strong>Temperatura do ar (2 m)</strong> — conforto estável e mudanças bruscas: variação forte na hora anterior reduz ligeiramente o score (peixe pode ajustar-se mais devagar).</li>
             <li><strong>Temperatura do mar (SST)</strong> — quando disponível no modelo marinho; influencia metabolismo e distribuição de espécies.</li>
             <li><strong>Pressão ao nível do mar</strong> — quedas rápidas de pressão costumam correlacionar com tempo instável; estabilidade ou subida lenta favorece condições mais previsíveis.</li>
           </ul>
-          <p class="muted small">O <strong>índice 0–100</strong> é uma heurística educativa que combina estes sinais (não é garantia de capturas). Fontes: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (previsão + dados marinhos + geocodificação).</p>
+          <p class="muted small">O <strong>índice 0–100</strong> é uma heurística educativa que combina estes sinais (não é garantia de capturas). Fontes: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (previsão, maré, geocodificação) e <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a> (sol/lua). Requer <code>User-Agent</code> identificável nos pedidos à MET Norway.</p>
         </div>
       </section>
 
@@ -80,12 +80,11 @@
     </main>
 
     <footer class="footer muted small">
-      Dados: Open-Meteo (modelos numéricos). Marés em zonas costeiras têm limitações — confirme sempre fontes oficiais para navegação.
+      Dados: Open-Meteo (maré/clima) e MET Norway / Sunrise 3.0 (sol e lua). Marés em zonas costeiras têm limitações — confirme fontes oficiais para navegação.
     </footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.min.js" crossorigin="anonymous"></script>
   <script type="module" src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
