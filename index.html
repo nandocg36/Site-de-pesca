@@ -27,7 +27,11 @@
 
     <section class="search card card-elevated" aria-label="Localização">
       <h2 class="card-title">Onde vais pescar?</h2>
-      <p class="card-hint muted">Pesquisa uma cidade e depois <strong>arrasta o pin</strong> no mapa até o sítio real. Cidades grandes mudam muito de maré e clima de um lado para o outro.</p>
+      <div class="map-steps" role="list">
+        <div class="map-step"><span class="map-step-num">1</span> Pesquisa ou GPS para aproximar a zona.</div>
+        <div class="map-step map-step-highlight"><span class="map-step-num">2</span> <strong>Clica no mapa</strong> no sítio exato (como no Google Maps) — o marcador azul move-se para esse ponto.</div>
+        <div class="map-step"><span class="map-step-num">3</span> Podes <strong>arrastar o marcador</strong> para afinar. Os dados recalculam automaticamente.</div>
+      </div>
       <div class="search-row">
         <input type="search" id="placeQuery" placeholder="Cidade, aldeia, cais…" autocomplete="off" />
         <button type="button" id="btnSearch" class="btn primary">Pesquisar</button>
@@ -44,8 +48,9 @@
         <p class="muted small water-hint">Na costa usamos células <em>no mar</em> para maré e temperatura da água. No interior a maré do modelo é menos fiável — o texto assinala isso.</p>
       </div>
 
-      <div id="map" class="map-wrap" role="application" aria-label="Mapa: clique ou arraste o marcador"></div>
-      <p class="map-help muted small">Clica no mapa para mover o pin · arrasta para afinar</p>
+      <p class="map-banner" id="mapBanner"><span class="map-banner-icon" aria-hidden="true">📍</span> <strong>Mapa interativo</strong> — clica em qualquer sítio para escolher as coordenadas exatas do ponto de pesca.</p>
+      <div id="map" class="map-wrap" role="application" aria-label="Mapa interativo: clique para definir o ponto de pesca"></div>
+      <p class="map-help muted small">Camada <strong>Mapa</strong> ou <strong>Satélite</strong> (canto superior direito). Zoom com +/− ou gestos.</p>
 
       <div class="coord-toolbar">
         <div class="coord-inputs">
@@ -103,8 +108,21 @@
         <div class="moon-row" id="moonRow"></div>
       </section>
 
+      <section class="card card-elevated" aria-label="Lista hora a hora">
+        <h2 class="card-title">Hora a hora — o que esperar</h2>
+        <p class="muted small">Cada linha diz se a hora é boa ou fraca e <strong>porquê</strong> (maré, lua, sol, clima). Ordenado da melhor para a pior hora do dia.</p>
+        <div class="hourly-sort-row">
+          <label class="hourly-sort-label" for="hourlySort">Ordenar</label>
+          <select id="hourlySort" class="day-select hourly-sort-select">
+            <option value="best">Melhores horas primeiro</option>
+            <option value="time">Do início ao fim do dia</option>
+          </select>
+        </div>
+        <div id="hourlyList" class="hourly-list"></div>
+      </section>
+
       <section class="card chart-card card-elevated" aria-label="Gráfico do dia">
-        <h2 class="card-title">Índice hora a hora</h2>
+        <h2 class="card-title">Gráfico do dia</h2>
         <p class="muted small">Barras = índice; linha = nível do mar (só relevante na costa).</p>
         <div class="chart-wrap">
           <canvas id="dayChart" width="900" height="320" role="img" aria-label="Gráfico de barras horário"></canvas>

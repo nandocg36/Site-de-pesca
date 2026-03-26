@@ -17,9 +17,12 @@ const MET_HEADERS = {
 const state = {
   map: null,
   marker: null,
+  baseLayers: null,
   reloadTimer: null,
   chart: null,
-  /** @type {{ aligned: object, scores: number[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string } | null} */
+  /** último resultado detalhado por hora (alinhado com `times`) */
+  scoreDetails: null,
+  /** @type {{ aligned: object, scores: number[], scoreDetails: object[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string } | null} */
   bundle: null,
 };
 
@@ -260,7 +263,11 @@ function moonEventBoostFromTimes(moonrise, moonset) {
   };
 }
 
-function computeHourlyScores(lat, lon, aligned, astroByDay) {
+/**
+ * Calcula índice horário e componentes normalizados (0–1) para explicar cada hora.
+ * @returns {{ scores: number[], details: object[] }}
+ */
+function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay) {
   const { times, sea, sst, temp, press, isDay } = aligned;
   const n = times.length;
   const tideTurn = new Array(n).fill(0);
@@ -299,6 +306,7 @@ function computeHourlyScores(lat, lon, aligned, astroByDay) {
   );
 
   const scores = [];
+  const details = [];
   const moonEvCache = new Map();
 
   for (let i = 0; i < n; i++) {
@@ -323,7 +331,7 @@ function computeHourlyScores(lat, lon, aligned, astroByDay) {
     const illum = astro?.moonphase != null ? astro.moonphase / 100 : 0.5;
     const moonComb = Math.min(1, 0.55 * moonP + 0.35 * moonEv + 0.15 * (0.5 + Math.abs(illum - 0.5)));
 
-    let sstS = sst[i] != null ? 0.08 * (sstScore[i] || 0.5) : 0.04;
+    const sstS = sst[i] != null ? 0.08 * (sstScore[i] || 0.5) : 0.04;
 
     const raw =
       0.28 * turnN[i] +
@@ -335,9 +343,21 @@ function computeHourlyScores(lat, lon, aligned, astroByDay) {
       sstS;
 
     scores.push(Math.round(Math.max(0, Math.min(100, raw * 100))));
+    details.push({
+      turnN: turnN[i],
+      speedSweet: speedSweet[i],
+      moonComb,
+      sunB,
+      pressScore: pressScore[i],
+      tempScore: tempScore[i],
+      sstPresent: sst[i] != null && Number.isFinite(sst[i]),
+      isDay: id,
+      dPress: i === 0 ? 0 : dPress[i],
+      dTemp: i === 0 ? 0 : dTemp[i],
+    });
   }
 
-  return scores;
+  return { scores, details };
 }
 
 function groupByDay(times, scores, sea) {
@@ -378,6 +398,113 @@ function formatHourRange(tStart, tEnd) {
   const a = tStart.slice(11, 16).replace(':', 'h');
   const b = tEnd.slice(11, 16).replace(':', 'h');
   return `${a}–${b}`;
+}
+
+function formatHourLabel(isoLocal) {
+  const d = new Date(isoLocal);
+  if (Number.isNaN(d.getTime())) return isoLocal.slice(11, 16);
+  return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+function hourQualityWords(score) {
+  if (score >= 68) return { label: 'Muito boa', cls: 'hour-good', badge: 'b-good' };
+  if (score >= 52) return { label: 'Razoável', cls: 'hour-mid', badge: 'b-mid' };
+  if (score >= 40) return { label: 'Fraca', cls: 'hour-poor', badge: 'b-poor' };
+  return { label: 'Má', cls: 'hour-poor', badge: 'b-poor' };
+}
+
+function buildHourExplanations(detail, isInland) {
+  const hi = 0.62;
+  const lo = 0.38;
+  const lines = [];
+
+  if (!isInland) {
+    if (detail.turnN >= hi) {
+      lines.push('Maré: <strong>viragem ou mudança de fluxo</strong> — hora em que o modelo marca mais movimento no nível do mar (frequentemente janela interessante).');
+    } else if (detail.turnN <= lo) {
+      lines.push('Maré: <strong>pouca viragem</strong> nesta hora — o índice não é puxado pela maré.');
+    } else {
+      lines.push('Maré: influência <strong>média</strong> (nem pico nem vale forte no modelo).');
+    }
+  } else {
+    lines.push('Água doce / interior: o sinal de <strong>maré no modelo é pouco fiável</strong> aqui; o índice depende mais de lua, sol e clima.');
+  }
+
+  if (detail.moonComb >= hi) {
+    lines.push('Lua: <strong>fase ou horário</strong> considerados favoráveis (tradição solunar).');
+  } else if (detail.moonComb <= lo) {
+    lines.push('Lua: <strong>menos favorável</strong> nesta hora para o critério usado.');
+  }
+
+  if (detail.sunB >= hi) {
+    lines.push('Sol: <strong>perto do nascer, do pôr ou luz baixa</strong> — “horas douradas”.');
+  } else if (detail.sunB <= 0.34) {
+    lines.push('Sol: <strong>sol alto ou noite</strong> sem janela de luz tão favorável.');
+  }
+
+  if (detail.pressScore >= 0.78) {
+    lines.push('Pressão: <strong>sem queda brusca</strong> na última hora — ar mais estável.');
+  } else if (detail.pressScore <= 0.48) {
+    lines.push('Pressão: <strong>queda ou mudança rápida</strong> — tempo pode instabilizar.');
+  }
+
+  if (detail.tempScore >= 0.72) {
+    lines.push('Temperatura do ar: <strong>mudou pouco</strong> na última hora.');
+  } else if (detail.tempScore <= 0.45) {
+    lines.push('Temperatura do ar: <strong>variação forte</strong> na última hora.');
+  }
+
+  if (detail.sstPresent) {
+    lines.push('Água do mar: há dado de temperatura superficial no modelo para esta grelha.');
+  }
+
+  return lines;
+}
+
+function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
+  const el = $('hourlyList');
+  if (!el) return;
+  const dayIdx = sliceDayIndices(times, dateKey);
+  if (!dayIdx.length) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const sortMode = $('hourlySort')?.value || 'best';
+  const rows = dayIdx.map((gi) => ({
+    gi,
+    time: times[gi],
+    score: scores[gi],
+    detail: scoreDetails[gi],
+  }));
+
+  if (sortMode === 'best') {
+    rows.sort((a, b) => b.score - a.score || a.time.localeCompare(b.time));
+  }
+
+  const bestScore = Math.max(...rows.map((r) => r.score));
+  el.innerHTML = '';
+  for (const r of rows) {
+    const q = hourQualityWords(r.score);
+    const expl = buildHourExplanations(r.detail || {}, isInland);
+    const isBest = r.score === bestScore && bestScore > 0;
+    const row = document.createElement('article');
+    row.className = `hourly-row ${q.cls}`;
+    row.setAttribute('aria-label', `Hora ${formatHourLabel(r.time)}, índice ${r.score}`);
+    const badgeExtra = isBest && sortMode === 'best' ? ' · melhor hora do dia' : '';
+    row.innerHTML = `
+      <div class="hourly-time">${formatHourLabel(r.time)}</div>
+      <div class="hourly-meta">
+        <span class="hourly-badge ${q.badge}">${q.label}</span>
+        <span class="hourly-score">Índice ${r.score}/100${badgeExtra}</span>
+      </div>
+      <div class="hourly-why">
+        <strong>Porquê:</strong>
+        <ul>${expl.map((x) => `<li>${x}</li>`).join('')}</ul>
+      </div>
+    `;
+    el.appendChild(row);
+  }
 }
 
 /** Períodos do dia em hora local (string API). */
@@ -730,30 +857,83 @@ function getLatLonFromInputs() {
   return { lat, lon };
 }
 
+function fishingPinIcon() {
+  return L.divIcon({
+    className: 'fishing-pin-marker',
+    html: '<div class="pin-ring"></div><div class="pin-core"></div>',
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -24],
+  });
+}
+
+function updateMarkerPopup(lat, lon) {
+  if (!state.marker) return;
+  state.marker.setPopupContent(
+    `<p class="map-popup-coords"><strong>Ponto de pesca</strong><br/>${lat.toFixed(5)}°, ${lon.toFixed(5)}°</p>`
+  );
+}
+
 function initMap() {
   if (state.map || typeof L === 'undefined') return;
   const mapEl = $('map');
   if (!mapEl) return;
 
   state.map = L.map('map', { zoomControl: true }).setView([40.2, -8.4], 6);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
-  }).addTo(state.map);
+  });
 
-  state.marker = L.marker([40.2, -8.4], { draggable: true }).addTo(state.map);
+  const satellite = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      attribution: 'Tiles &copy; Esri',
+      maxZoom: 19,
+    }
+  );
+
+  satellite.addTo(state.map);
+  state.baseLayers = { Satélite: satellite, Mapa: osm };
+  L.control.layers(state.baseLayers, null, { position: 'topright' }).addTo(state.map);
+
+  state.marker = L.marker([40.2, -8.4], {
+    draggable: true,
+    icon: fishingPinIcon(),
+    riseOnHover: true,
+    title: 'Ponto de pesca — arrastar ou clicar no mapa para mover',
+  }).addTo(state.map);
+  state.marker.bindPopup('');
+  updateMarkerPopup(40.2, -8.4);
+
+  state.marker.on('dragstart', () => {
+    state.marker.closePopup();
+  });
 
   state.marker.on('dragend', () => {
     const ll = state.marker.getLatLng();
     syncInputsFromLatLng(ll.lat, ll.lng);
+    updateMarkerPopup(ll.lat, ll.lng);
+    state.marker.openPopup();
     scheduleReloadFromMap();
   });
 
   state.map.on('click', (e) => {
     state.marker.setLatLng(e.latlng);
     syncInputsFromLatLng(e.latlng.lat, e.latlng.lng);
+    updateMarkerPopup(e.latlng.lat, e.latlng.lng);
+    state.marker.openPopup();
     scheduleReloadFromMap();
   });
+
+  window.addEventListener('resize', () => {
+    state.map?.invalidateSize();
+  });
+  requestAnimationFrame(() => {
+    state.map?.invalidateSize();
+  });
+  setTimeout(() => state.map?.invalidateSize(), 400);
 }
 
 function scheduleReloadFromMap() {
@@ -810,13 +990,14 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
     const dayKeys = aligned.times.map((t) => t.slice(0, 10));
     const astroByDay = await loadAstroSeries(lat, lon, dayKeys, offsetStr);
 
-    const scores = computeHourlyScores(lat, lon, aligned, astroByDay);
+    const { scores, details: scoreDetails } = computeHourlyScoresDetailed(lat, lon, aligned, astroByDay);
     const dayData = groupByDay(aligned.times, scores, aligned.sea);
     const inland = isInlandContext();
 
     state.bundle = {
       aligned,
       scores,
+      scoreDetails,
       dayData,
       astroByDay,
       forecast,
@@ -827,6 +1008,7 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
       lon,
       marineMeta: { latitude: marine.latitude, longitude: marine.longitude },
     };
+    state.scoreDetails = scoreDetails;
 
     const today = aligned.times[0].slice(0, 10);
     fillDaySelect(dayData, today);
@@ -844,6 +1026,7 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
       );
       const { labels, scores: sc, seaNorm } = sliceDay(aligned.times, scores, aligned.sea, dateKey);
       updateChart(labels, sc, seaNorm);
+      renderHourlyList(dateKey, aligned.times, scores, scoreDetails, inland);
     };
 
     $('daySelect').onchange = () => renderForDate($('daySelect').value);
@@ -855,6 +1038,7 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
       '<span class="muted">Afinar no mapa ou nas coordenadas e «Aplicar» para recalcular.</span>';
     $('locationLabel').innerHTML = `<strong>Ponto ativo:</strong> ${placeLabel}<br/>${hint}`;
     $('mainContent').classList.remove('hidden');
+    requestAnimationFrame(() => state.map?.invalidateSize());
   } catch (e) {
     showError(e.message || 'Erro ao carregar dados.');
   } finally {
@@ -868,6 +1052,8 @@ function selectPlaceFromSearch(place) {
   if (state.map && state.marker) {
     state.map.setView([lat, lon], 12);
     state.marker.setLatLng([lat, lon]);
+    updateMarkerPopup(lat, lon);
+    state.marker.openPopup();
   }
   syncInputsFromLatLng(lat, lon);
   return loadAtCoordinates(lat, lon, {
@@ -875,7 +1061,7 @@ function selectPlaceFromSearch(place) {
     label: formatPlace(place),
     timezone: place.timezone,
     locationHint:
-      '<span class="muted">Arrasta o pin no mapa até ao cais, barco ou margem exacta onde vais pescar.</span>',
+      '<span class="muted">Arrasta o pin no mapa até ao cais, barco ou margem exata onde vais pescar.</span>',
   });
 }
 
@@ -951,6 +1137,8 @@ function setupSearch() {
         state.map.setView([lat, lon], 13);
         state.marker.setLatLng([lat, lon]);
         syncInputsFromLatLng(lat, lon);
+        updateMarkerPopup(lat, lon);
+        state.marker.openPopup();
         await loadAtCoordinates(lat, lon, { updateLabel: true });
       },
       () => showError('Não foi possível obter a localização. Verifique as permissões.'),
@@ -968,6 +1156,8 @@ function setupSearch() {
     initMap();
     state.map.setView([ll.lat, ll.lon], 13);
     state.marker.setLatLng([ll.lat, ll.lon]);
+    updateMarkerPopup(ll.lat, ll.lon);
+    state.marker.openPopup();
     loadAtCoordinates(ll.lat, ll.lon, { updateLabel: true });
   });
 
@@ -994,6 +1184,12 @@ $('metricsToggle').addEventListener('click', () => {
   const panel = $('metricsPanel');
   const open = panel.classList.toggle('hidden');
   $('metricsToggle').setAttribute('aria-expanded', String(!open));
+});
+
+$('hourlySort').addEventListener('change', () => {
+  const b = state.bundle;
+  if (!b) return;
+  renderHourlyList($('daySelect').value, b.aligned.times, b.scores, b.scoreDetails, b.isInland);
 });
 
 setupSearch();
