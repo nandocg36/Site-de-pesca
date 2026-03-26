@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a3a5c" />
+  <meta name="description" content="PWA com melhores horários para pesca: marés, lua, sol, temperatura e pressão — dados reais por localização." />
+  <title>Horários de Pesca</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>Horários de Pesca</h1>
+      <p class="subtitle">Marés, lua, sol e clima — score ao longo do dia e próximos dias</p>
+    </header>
+
+    <section class="search card" aria-label="Localização">
+      <div class="search-row">
+        <input type="search" id="placeQuery" placeholder="Ex.: Lisboa, Rio de Janeiro, porto..." autocomplete="off" />
+        <button type="button" id="btnSearch" class="btn primary">Pesquisar</button>
+        <button type="button" id="btnGeo" class="btn" title="Usar GPS">📍 GPS</button>
+      </div>
+      <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
+      <div id="locationLabel" class="location-label muted"></div>
+    </section>
+
+    <section id="errorBox" class="error hidden" role="alert"></section>
+
+    <section id="loading" class="loading hidden" aria-live="polite">
+      <div class="spinner"></div>
+      <span>A carregar dados meteorológicos e marinhos…</span>
+    </section>
+
+    <main id="mainContent" class="hidden">
+      <section class="card metrics" aria-label="Métricas e como usar">
+        <button type="button" class="accordion-toggle" id="metricsToggle" aria-expanded="false">
+          O que medimos e como interpretar
+        </button>
+        <div class="accordion-panel hidden" id="metricsPanel">
+          <ul class="metric-list">
+            <li><strong>Maré (movimento)</strong> — derivado da variação hora a hora do nível do mar (modelo Open-Meteo). Picos de enchente ou vazante costumam concentrar peixes; damos mais pontos próximo desses máximos/mínimos locais. <em>Aviso:</em> não substitui tábua náutica oficial.</li>
+            <li><strong>Lua (iluminação + fase)</strong> — tradição <em>solunar</em>: períodos em torno da lua cheia/nova e maior iluminação noturna são frequentemente associados a maior atividade. Usamos iluminação real da fase lunar no local.</li>
+            <li><strong>Sol (altura)</strong> — nascer, pôr do sol e altura no céu (trigonometria). Crepúsculos e “major/minor periods” aproximados alinham-se com janelas curtas de picos combinados com lua.</li>
+            <li><strong>Temperatura do ar (2 m)</strong> — conforto estável e mudanças bruscas: variação forte na hora anterior reduz ligeiramente o score (peixe pode ajustar-se mais devagar).</li>
+            <li><strong>Temperatura do mar (SST)</strong> — quando disponível no modelo marinho; influencia metabolismo e distribuição de espécies.</li>
+            <li><strong>Pressão ao nível do mar</strong> — quedas rápidas de pressão costumam correlacionar com tempo instável; estabilidade ou subida lenta favorece condições mais previsíveis.</li>
+          </ul>
+          <p class="muted small">O <strong>índice 0–100</strong> é uma heurística educativa que combina estes sinais (não é garantia de capturas). Fontes: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (previsão + dados marinhos + geocodificação).</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="day-picker-row">
+          <label for="daySelect">Dia</label>
+          <select id="daySelect" class="day-select"></select>
+        </div>
+        <div class="summary-grid" id="summaryGrid"></div>
+        <div class="moon-row" id="moonRow"></div>
+      </section>
+
+      <section class="card chart-card" aria-label="Gráfico do dia">
+        <h2>Índice de pesca ao longo do dia</h2>
+        <p class="muted small">Barras mais altas = janelas potencialmente melhores; linha tracejada = maré (nível normalizado).</p>
+        <div class="chart-wrap">
+          <canvas id="dayChart" width="900" height="320" role="img" aria-label="Gráfico de barras horário"></canvas>
+        </div>
+        <div class="legend">
+          <span><i class="leg bar"></i> Índice horário</span>
+          <span><i class="leg tide"></i> Nível do mar (rel.)</span>
+        </div>
+      </section>
+
+      <section class="card" aria-label="Próximos dias">
+        <h2>Resumo dos próximos dias</h2>
+        <div class="forecast-list" id="forecastList"></div>
+      </section>
+    </main>
+
+    <footer class="footer muted small">
+      Dados: Open-Meteo (modelos numéricos). Marés em zonas costeiras têm limitações — confirme sempre fontes oficiais para navegação.
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.min.js" crossorigin="anonymous"></script>
+  <script type="module" src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(function () {});
+    }
+  </script>
+</body>
+</html>
