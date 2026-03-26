@@ -22,7 +22,8 @@
   --radius-sm: 12px;
   --radius-xs: 8px;
   --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
-  --font-display: "Syne", var(--font-sans);
+  --font-brand: "Plus Jakarta Sans", var(--font-sans);
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --shadow-soft: 0 4px 24px rgba(0, 0, 0, 0.35);
   --shadow-lift: 0 20px 50px rgba(0, 0, 0, 0.45);
   --blur-glass: 18px;
@@ -110,19 +111,19 @@ a:hover {
 }
 
 .brand-name {
-  font-family: var(--font-display);
-  font-weight: 800;
+  font-family: var(--font-brand);
+  font-weight: 700;
   font-size: 0.95rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--text);
 }
 
 .brand-tag {
+  font-family: var(--font-brand);
   font-size: 0.72rem;
+  font-weight: 500;
   color: var(--muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.04em;
   margin-left: auto;
 }
 
@@ -140,25 +141,43 @@ a:hover {
 }
 
 .hero-kicker {
-  margin: 0 0 0.5rem;
-  font-size: 0.7rem;
+  margin: 0 0 0.85rem;
+  font-family: var(--font-brand);
+  font-size: 0.68rem;
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--accent-2);
+  color: rgba(124, 240, 212, 0.95);
 }
 
-.hero h1 {
-  margin: 0 0 0.65rem;
+.hero-welcome {
+  margin: 0 0 0.85rem;
   font-family: var(--font-display);
-  font-size: clamp(1.75rem, 5.5vw, 2.35rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.15;
-  background: linear-gradient(120deg, #fff 0%, #c5e8ff 45%, #7cf0d4 100%);
+  font-weight: 600;
+  font-style: italic;
+  font-variation-settings: "SOFT" 40, "WONK" 0.9;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.hero-welcome-place {
+  display: block;
+  font-size: clamp(1.45rem, 5.2vw, 2rem);
+  font-weight: 700;
+  background: linear-gradient(118deg, #fff 0%, #d4eeff 42%, #9ef0e0 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  text-shadow: 0 0 40px rgba(94, 184, 255, 0.15);
+}
+
+.hero-welcome-msg {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: clamp(1.05rem, 3.8vw, 1.35rem);
+  font-weight: 500;
+  font-style: italic;
+  color: rgba(240, 244, 252, 0.92);
 }
 
 .hero-lead {
@@ -228,9 +247,12 @@ a:hover {
 .card-title {
   margin: 0 0 0.55rem;
   font-family: var(--font-display);
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 1.12rem;
+  font-weight: 600;
+  font-style: italic;
+  font-variation-settings: "SOFT" 35, "WONK" 0.85;
+  letter-spacing: -0.015em;
+  color: var(--text);
 }
 
 .card-hint {
@@ -331,47 +353,6 @@ a:hover {
 
 .water-hint {
   margin: 0.5rem 0 0;
-}
-
-.map-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  margin: 0 0 1.1rem;
-  padding: 1rem 1.1rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  font-size: 0.88rem;
-}
-
-.map-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.65rem;
-  line-height: 1.45;
-}
-
-.map-step-highlight {
-  padding: 0.5rem 0.65rem;
-  margin: 0 -0.15rem;
-  border-radius: var(--radius-xs);
-  background: linear-gradient(90deg, rgba(94, 184, 255, 0.12), rgba(124, 240, 212, 0.06));
-  border: 1px solid rgba(94, 184, 255, 0.28);
-}
-
-.map-step-num {
-  flex-shrink: 0;
-  width: 1.4rem;
-  height: 1.4rem;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--accent), #3a80d0);
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .map-banner {

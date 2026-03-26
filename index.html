@@ -8,7 +8,7 @@
   <title>Horários de Pesca</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
@@ -25,22 +25,20 @@
         <span class="brand-tag">Previsão meteorológica e marítima</span>
       </div>
       <div class="hero-inner">
-        <p class="hero-kicker">Dados em tempo real · maré · ondas · vento · solunar</p>
-        <h1>Planeje sua pescaria com precisão</h1>
-        <p class="hero-lead">Marque o <strong>ponto exato</strong> no mapa e veja um <strong>índice claro</strong>, hora a hora, com números reais e explicações em português.</p>
+        <p class="hero-kicker">Previsão de pesca</p>
+        <h1 class="hero-welcome">
+          <span class="hero-welcome-place">Plataforma Norte, Balneário Rincão</span>
+          <span class="hero-welcome-msg">Seja bem-vindo e boa pescaria</span>
+        </h1>
+        <p class="hero-lead">Marque o <strong>ponto exato</strong> no mapa e acompanhe maré, vento, lua e sol — hora a hora, com dados reais.</p>
       </div>
     </header>
 
     <section class="search card card-elevated card-glass" aria-label="Localização">
       <div class="section-eyebrow">Localização</div>
       <h2 class="card-title">Onde você vai pescar?</h2>
-      <div class="map-steps" role="list">
-        <div class="map-step"><span class="map-step-num">1</span> Use a busca ou o GPS para chegar perto da região.</div>
-        <div class="map-step map-step-highlight"><span class="map-step-num">2</span> <strong>Toque no mapa</strong> no lugar exato (como no Google Maps). O marcador azul vai para esse ponto.</div>
-        <div class="map-step"><span class="map-step-num">3</span> Você pode <strong>arrastar o marcador</strong> para ajustar. Os dados são recalculados sozinhos.</div>
-      </div>
       <div class="search-row">
-        <input type="search" id="placeQuery" placeholder="Cidade, rio, cais…" autocomplete="off" enterkeyhint="search" />
+        <input type="search" id="placeQuery" placeholder="Digite cidade, rio ou cais" autocomplete="off" enterkeyhint="search" />
         <button type="button" id="btnSearch" class="btn primary">Buscar</button>
         <button type="button" id="btnGeo" class="btn" title="Usar localização atual">GPS</button>
       </div>
