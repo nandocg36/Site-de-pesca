@@ -1,6 +1,5 @@
 /**
- * PWA Horários de Pesca — dados 100% via APIs:
- * Open-Meteo (marinho, meteorologia, geocodificação) + MET Norway Sunrise 3.0 (sol/lua/fase).
+ * PWA Horários de Pesca — Open-Meteo + MET Norway + mapa Leaflet.
  */
 
 const GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -10,18 +9,18 @@ const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
 const MET_SUN = 'https://api.met.no/weatherapi/sunrise/3.0/sun';
 const MET_MOON = 'https://api.met.no/weatherapi/sunrise/3.0/moon';
 
-/** MET Norway exige User-Agent identificável: https://api.met.no/doc/TermsOfService */
 const MET_HEADERS = {
   'User-Agent': 'PescaPWA/1.0 (https://github.com/nandocg36/Site-de-pesca)',
   Accept: 'application/json',
 };
 
 const state = {
-  place: null,
-  marine: null,
-  forecast: null,
-  astroByDay: null,
+  map: null,
+  marker: null,
+  reloadTimer: null,
   chart: null,
+  /** @type {{ aligned: object, scores: number[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string } | null} */
+  bundle: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -34,6 +33,14 @@ function showError(msg) {
 
 function hideError() {
   $('errorBox').classList.add('hidden');
+}
+
+function getWaterContext() {
+  return $('waterContext').value === 'inland' ? 'inland' : 'coastal';
+}
+
+function isInlandContext() {
+  return getWaterContext() === 'inland';
 }
 
 async function fetchJson(url, init = {}) {
@@ -58,7 +65,6 @@ function formatPlace(r) {
   return parts.join(', ');
 }
 
-/** Converte utc_offset_seconds da Open-Meteo para +HH:MM (MET Norway). */
 function formatMetOffset(seconds) {
   const totalM = Math.round(seconds / 60);
   const sign = totalM >= 0 ? '+' : '-';
@@ -77,7 +83,7 @@ async function resolveTimezone(lat, lon) {
     timezone: 'auto',
   });
   const data = await fetchJson(`${FORECAST_URL}?${params}`);
-  return data.timezone || 'GMT';
+  return { timezone: data.timezone || 'GMT', utc_offset_seconds: data.utc_offset_seconds ?? 0 };
 }
 
 async function reverseGeocode(lat, lon) {
@@ -107,6 +113,10 @@ async function reverseGeocode(lat, lon) {
   };
 }
 
+function marineCellSelection() {
+  return isInlandContext() ? 'nearest' : 'sea';
+}
+
 async function loadMarine(lat, lon, timezone) {
   const params = new URLSearchParams({
     latitude: String(lat),
@@ -114,7 +124,7 @@ async function loadMarine(lat, lon, timezone) {
     hourly: 'sea_level_height_msl,sea_surface_temperature',
     forecast_days: '8',
     timezone,
-    cell_selection: 'sea',
+    cell_selection: marineCellSelection(),
   });
   return fetchJson(`${MARINE_URL}?${params}`);
 }
@@ -144,7 +154,6 @@ async function fetchMetSunMoon(lat, lon, dateIso, offsetStr) {
   return { sun, moon };
 }
 
-/** Carrega sol/lua MET Norway para cada dia do calendário presente na série. */
 async function loadAstroSeries(lat, lon, dayKeys, offsetStr) {
   const unique = [...new Set(dayKeys)].sort();
   const entries = await Promise.all(
@@ -165,16 +174,16 @@ function parseTimeMaybe(s) {
 function parseAstroDay(sunFeature, moonFeature) {
   const sp = sunFeature?.properties || {};
   const mp = moonFeature?.properties || {};
-  const sunrise = parseTimeMaybe(sp.sunrise?.time);
-  const sunset = parseTimeMaybe(sp.sunset?.time);
-  const solarnoon = parseTimeMaybe(sp.solarnoon?.time);
-  const moonrise = parseTimeMaybe(mp.moonrise?.time);
-  const moonset = parseTimeMaybe(mp.moonset?.time);
-  const moonphase = typeof mp.moonphase === 'number' ? mp.moonphase : null;
-  return { sunrise, sunset, solarnoon, moonrise, moonset, moonphase };
+  return {
+    sunrise: parseTimeMaybe(sp.sunrise?.time),
+    sunset: parseTimeMaybe(sp.sunset?.time),
+    solarnoon: parseTimeMaybe(sp.solarnoon?.time),
+    moonrise: parseTimeMaybe(mp.moonrise?.time),
+    moonset: parseTimeMaybe(mp.moonset?.time),
+    moonphase: typeof mp.moonphase === 'number' ? mp.moonphase : null,
+  };
 }
 
-/** Alinha séries horárias pelo campo time (ISO local). */
 function alignByTime(marine, forecast) {
   const mt = marine?.hourly?.time || [];
   const ft = forecast?.hourly?.time || [];
@@ -214,14 +223,12 @@ function normalize(arr, invert = false) {
   });
 }
 
-/** Fase lunar em % (MET): picos em lua nova (~0) e cheia (~100). */
 function moonPhaseBoostFromPercent(phasePct) {
   if (phasePct == null || !Number.isFinite(phasePct)) return 0.5;
   const x = phasePct / 100;
   return Math.max(0, Math.min(1, 1 - 2 * Math.abs(x - 0.5)));
 }
 
-/** Proximidade a nascer/pôr do sol (dados MET): “horas douradas”. */
 function sunEdgeBoost(tMs, sunrise, sunset) {
   if (sunrise == null || sunset == null) return 0.5;
   const h = tMs / 3600000;
@@ -256,8 +263,8 @@ function moonEventBoostFromTimes(moonrise, moonset) {
 function computeHourlyScores(lat, lon, aligned, astroByDay) {
   const { times, sea, sst, temp, press, isDay } = aligned;
   const n = times.length;
-  const tideSpeed = new Array(n).fill(0);
   const tideTurn = new Array(n).fill(0);
+  const tideSpeed = new Array(n).fill(0);
   for (let i = 0; i < n; i++) {
     const h = sea[i];
     if (h == null || !Number.isFinite(h)) continue;
@@ -354,20 +361,207 @@ function groupByDay(times, scores, sea) {
 
 function weekdayPt(isoDate) {
   const d = new Date(isoDate + 'T12:00:00');
+  return d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function weekdayShort(isoDate) {
+  const d = new Date(isoDate + 'T12:00:00');
   return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
-function renderSummary(dayData, place, dateKey, astroByDay) {
+function hourFromTimeStr(t) {
+  const h = parseInt(t.slice(11, 13), 10);
+  return Number.isFinite(h) ? h : 12;
+}
+
+function formatHourRange(tStart, tEnd) {
+  const a = tStart.slice(11, 16).replace(':', 'h');
+  const b = tEnd.slice(11, 16).replace(':', 'h');
+  return `${a}–${b}`;
+}
+
+/** Períodos do dia em hora local (string API). */
+const PERIOD_DEFS = [
+  { id: 'madrugada', label: 'Madrugada', match: (h) => h >= 0 && h <= 5 },
+  { id: 'manha', label: 'Manhã', match: (h) => h >= 6 && h <= 11 },
+  { id: 'tarde', label: 'Tarde', match: (h) => h >= 12 && h <= 17 },
+  { id: 'noite', label: 'Noite', match: (h) => h >= 18 && h <= 23 },
+];
+
+function gradeLabel(avg) {
+  if (avg >= 68) return { text: 'Muito favorável', cls: 'grade-high' };
+  if (avg >= 52) return { text: 'Razoável', cls: 'grade-mid' };
+  if (avg >= 40) return { text: 'Fraco', cls: 'grade-low' };
+  return { text: 'Desfavorável', cls: 'grade-low' };
+}
+
+function mean(arr) {
+  if (!arr.length) return 0;
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+function sliceDayIndices(times, dateKey) {
+  const idx = [];
+  for (let i = 0; i < times.length; i++) {
+    if (times[i].startsWith(dateKey)) idx.push(i);
+  }
+  return idx;
+}
+
+function findContiguousWindows(dayIndices, scores, predicate) {
+  const wins = [];
+  let s = null;
+  for (let k = 0; k < dayIndices.length; k++) {
+    const gi = dayIndices[k];
+    const ok = predicate(scores[gi]);
+    if (ok && s === null) s = k;
+    if (!ok && s !== null) {
+      wins.push([s, k - 1]);
+      s = null;
+    }
+  }
+  if (s !== null) wins.push([s, dayIndices.length - 1]);
+  return wins.map(([a, b]) => ({ a, b, len: b - a + 1, avg: mean(dayIndices.slice(a, b + 1).map((gi) => scores[gi])) }));
+}
+
+function renderRecommendations(dateKey, times, scores, dayAvg, isInland) {
+  const dayIdx = sliceDayIndices(times, dateKey);
+  const intro = $('recIntro');
+  const verdict = $('recVerdict');
+  const periodsEl = $('recPeriods');
+  const windowsEl = $('recWindows');
+
+  if (!dayIdx.length) {
+    intro.textContent = '';
+    verdict.innerHTML = '';
+    periodsEl.innerHTML = '';
+    windowsEl.innerHTML = '';
+    return;
+  }
+
+  intro.textContent = `Para ${weekdayPt(dateKey)}, com base no ponto que marcaste no mapa. O índice vai de 0 a 100 (estimativa, não garantia de peixe).`;
+
+  const periodStats = PERIOD_DEFS.map((pd) => {
+    const vals = [];
+    for (const i of dayIdx) {
+      if (pd.match(hourFromTimeStr(times[i]))) vals.push(scores[i]);
+    }
+    const avg = vals.length ? Math.round(mean(vals)) : null;
+    return { ...pd, avg, n: vals.length };
+  }).filter((p) => p.n > 0);
+
+  const bestPeriod = periodStats.reduce(
+    (best, p) => (p.avg != null && (best == null || p.avg > best.avg) ? p : best),
+    null
+  );
+  const worstPeriod = periodStats.reduce(
+    (worst, p) => (p.avg != null && (worst == null || p.avg < worst.avg) ? p : worst),
+    null
+  );
+
+  let vClass = 'verdict-mid';
+  let vHtml = '';
+  if (dayAvg >= 58) {
+    vClass = '';
+    vHtml = `<strong>Visão geral: boas condições estimadas</strong> para este dia (média ~${dayAvg}/100). `;
+  } else if (dayAvg >= 45) {
+    vClass = 'verdict-mid';
+    vHtml = `<strong>Visão geral: condições médias</strong> (média ~${dayAvg}/100). `;
+  } else {
+    vClass = 'verdict-low';
+    vHtml = `<strong>Visão geral: dia mais difícil</strong> segundo o modelo (média ~${dayAvg}/100). `;
+  }
+
+  if (bestPeriod && bestPeriod.avg != null) {
+    const g = gradeLabel(bestPeriod.avg);
+    vHtml += `O período com melhor nota é a <strong>${bestPeriod.label.toLowerCase()}</strong>, com média de cerca de <strong>${bestPeriod.avg}/100</strong> (${g.text.toLowerCase()}). `;
+  }
+  if (worstPeriod && worstPeriod.avg != null && worstPeriod.id !== bestPeriod?.id) {
+    vHtml += `A <strong>${worstPeriod.label.toLowerCase()}</strong> tende a ser mais fraca (~${worstPeriod.avg}/100). `;
+  }
+  if (isInland) {
+    vHtml +=
+      ' <em>Nota:</em> em lago/rio o modelo de maré é menos fiável; dá mais peso ao clima e à lua/sol.';
+  }
+  verdict.className = 'verdict-box ' + vClass;
+  verdict.innerHTML = vHtml;
+
+  periodsEl.innerHTML = '';
+  for (const p of periodStats) {
+    if (p.avg == null) continue;
+    const g = gradeLabel(p.avg);
+    const card = document.createElement('div');
+    card.className = `period-card ${g.cls}`;
+    card.innerHTML = `
+      <div class="period-name">${p.label}</div>
+      <div class="period-grade">${p.avg}/100 — ${g.text}</div>
+      <div class="period-detail">Média das ${p.n} horas deste período</div>
+    `;
+    periodsEl.appendChild(card);
+  }
+
+  const goodThreshold = Math.max(52, dayAvg - 2);
+  const goodWins = findContiguousWindows(dayIdx, scores, (s) => s >= goodThreshold)
+    .filter((w) => w.len >= 2)
+    .sort((a, b) => b.avg - a.avg)
+    .slice(0, 3);
+
+  const poorWins = findContiguousWindows(dayIdx, scores, (s) => s < 42)
+    .filter((w) => w.len >= 2)
+    .sort((a, b) => a.avg - b.avg)
+    .slice(0, 2);
+
+  windowsEl.innerHTML = '';
+  const addHeading = (text) => {
+    const h = document.createElement('p');
+    h.className = 'muted small';
+    h.style.margin = '0 0 0.35rem';
+    h.textContent = text;
+    windowsEl.appendChild(h);
+  };
+
+  if (goodWins.length) {
+    addHeading('Janelas contínuas em que o índice se mantém mais alto:');
+    for (const w of goodWins) {
+      const i0 = dayIdx[w.a];
+      const i1 = dayIdx[w.b];
+      const line = document.createElement('div');
+      line.className = 'window-line';
+      line.textContent = `Entre ${formatHourRange(times[i0], times[i1])} — média ~${Math.round(w.avg)}/100 no intervalo.`;
+      windowsEl.appendChild(line);
+    }
+  } else {
+    addHeading('Não há blocos longos de horas seguidas muito altas; olha o gráfico para picos isolados.');
+  }
+
+  if (poorWins.length) {
+    addHeading('Períodos contínuos mais fracos:');
+    for (const w of poorWins) {
+      const i0 = dayIdx[w.a];
+      const i1 = dayIdx[w.b];
+      const line = document.createElement('div');
+      line.className = 'window-line window-poor';
+      line.textContent = `Entre ${formatHourRange(times[i0], times[i1])} — média ~${Math.round(w.avg)}/100.`;
+      windowsEl.appendChild(line);
+    }
+  }
+}
+
+function renderSummary(dayData, place, dateKey, astroByDay, marineMeta) {
   const grid = $('summaryGrid');
   grid.innerHTML = '';
   const idx = dayData.findIndex((d) => d.date === dateKey);
   const day = idx >= 0 ? dayData[idx] : dayData[0];
   if (!day) return;
 
+  const gridLat = marineMeta?.latitude != null ? Number(marineMeta.latitude).toFixed(4) : place.lat.toFixed(4);
+  const gridLon = marineMeta?.longitude != null ? Number(marineMeta.longitude).toFixed(4) : place.lon.toFixed(4);
+
   const cells = [
-    ['Média do dia', String(day.avgScore) + '/100'],
-    ['Melhor hora', String(day.maxScore) + '/100'],
-    ['Coordenadas', `${place.lat.toFixed(3)}°, ${place.lon.toFixed(3)}°`],
+    ['Média do dia', `${day.avgScore}/100`],
+    ['Melhor hora (pico)', `${day.maxScore}/100`],
+    ['Ponto no mapa', `${place.lat.toFixed(5)}°, ${place.lon.toFixed(5)}°`],
+    ['Grelha marinho (modelo)', `${gridLat}°, ${gridLon}°`],
     ['Fuso', place.timezone || '—'],
   ];
   for (const [label, value] of cells) {
@@ -388,7 +582,7 @@ function renderSummary(dayData, place, dateKey, astroByDay) {
     const ss = astro.sunset
       ? new Date(astro.sunset).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       : '—';
-    parts.push(`Sol (API MET Norway): nascer ${sr}, pôr ${ss}`);
+    parts.push(`Sol (MET Norway): nascer ${sr} · pôr ${ss}`);
   }
 
   if (astro && astro.moonphase != null) {
@@ -398,10 +592,8 @@ function renderSummary(dayData, place, dateKey, astroByDay) {
     const ms = astro.moonset
       ? new Date(astro.moonset).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       : null;
-    const ev = [mr ? `subida ${mr}` : null, ms ? `por ${ms}` : null].filter(Boolean).join(', ');
-    parts.push(
-      `Lua (API MET Norway): ~${astro.moonphase.toFixed(0)}% iluminada${ev ? ` · ${ev}` : ''}`
-    );
+    const ev = [mr ? `subida ${mr}` : null, ms ? `por ${ms}` : null].filter(Boolean).join(' · ');
+    parts.push(`Lua: ~${astro.moonphase.toFixed(0)}% iluminada${ev ? ` · ${ev}` : ''}`);
   }
 
   sunRow.innerHTML = parts.length ? parts.join('<br/>') : '—';
@@ -416,8 +608,8 @@ function renderForecastList(dayData) {
     row.className = 'forecast-item';
     const pillClass = d.avgScore >= 62 ? 'score-high' : d.avgScore >= 45 ? 'score-mid' : 'score-low';
     row.innerHTML = `
-      <span class="day-name">${weekdayPt(d.date)}</span>
-      <span class="score-pill ${pillClass}">média ${d.avgScore}</span>
+      <span class="day-name">${weekdayShort(d.date)}</span>
+      <span class="score-pill ${pillClass}">média ${d.avgScore}/100</span>
     `;
     list.appendChild(row);
   }
@@ -438,17 +630,17 @@ function updateChart(labels, scores, seaNorm) {
           label: 'Índice',
           data: scores,
           backgroundColor: scores.map((s) =>
-            s >= 65 ? 'rgba(61, 214, 140, 0.75)' : s >= 45 ? 'rgba(61, 156, 245, 0.65)' : 'rgba(240, 107, 107, 0.55)'
+            s >= 65 ? 'rgba(62, 224, 168, 0.8)' : s >= 45 ? 'rgba(78, 176, 255, 0.65)' : 'rgba(255, 123, 123, 0.55)'
           ),
-          borderRadius: 4,
+          borderRadius: 6,
           yAxisID: 'y',
         },
         {
           type: 'line',
-          label: 'Maré (rel.)',
+          label: 'Maré',
           data: seaNorm,
-          borderColor: 'rgba(255, 200, 120, 0.9)',
-          borderDash: [4, 4],
+          borderColor: 'rgba(255, 210, 140, 0.95)',
+          borderDash: [5, 5],
           tension: 0.35,
           pointRadius: 0,
           yAxisID: 'y1',
@@ -473,26 +665,21 @@ function updateChart(labels, scores, seaNorm) {
       },
       scales: {
         x: {
-          ticks: {
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 12,
-            color: '#8fa3c4',
-          },
-          grid: { color: 'rgba(42, 63, 107, 0.5)' },
+          ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 14, color: '#8ba3c2' },
+          grid: { color: 'rgba(42, 74, 111, 0.45)' },
         },
         y: {
           min: 0,
           max: 100,
-          title: { display: true, text: 'Índice', color: '#8fa3c4' },
-          ticks: { color: '#8fa3c4' },
-          grid: { color: 'rgba(42, 63, 107, 0.5)' },
+          title: { display: true, text: 'Índice', color: '#8ba3c2' },
+          ticks: { color: '#8ba3c2' },
+          grid: { color: 'rgba(42, 74, 111, 0.45)' },
         },
         y1: {
           position: 'right',
           min: 0,
           max: 1,
-          title: { display: true, text: 'Nível mar', color: '#c9a227' },
+          title: { display: true, text: 'Maré', color: '#e8c078' },
           ticks: { display: false },
           grid: { drawOnChartArea: false },
         },
@@ -502,10 +689,7 @@ function updateChart(labels, scores, seaNorm) {
 }
 
 function sliceDay(times, scores, sea, dateKey) {
-  const idx = [];
-  for (let i = 0; i < times.length; i++) {
-    if (times[i].startsWith(dateKey)) idx.push(i);
-  }
+  const idx = sliceDayIndices(times, dateKey);
   const labels = idx.map((i) => times[i].slice(11, 16));
   const sc = idx.map((i) => scores[i]);
   const se = idx.map((i) => sea[i]);
@@ -527,42 +711,137 @@ function fillDaySelect(dayData, selected) {
     if (d.hours < 4) continue;
     const opt = document.createElement('option');
     opt.value = d.date;
-    opt.textContent = `${weekdayPt(d.date)} — média ${d.avgScore}`;
+    opt.textContent = `${weekdayShort(d.date)} — média ${d.avgScore}/100`;
     sel.appendChild(opt);
   }
   if ([...sel.options].some((o) => o.value === selected)) sel.value = selected;
 }
 
-async function selectPlace(place) {
-  state.place = place;
+function syncInputsFromLatLng(lat, lon) {
+  $('inputLat').value = Number(lat).toFixed(5);
+  $('inputLon').value = Number(lon).toFixed(5);
+}
+
+function getLatLonFromInputs() {
+  const lat = parseFloat($('inputLat').value);
+  const lon = parseFloat($('inputLon').value);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { lat, lon };
+}
+
+function initMap() {
+  if (state.map || typeof L === 'undefined') return;
+  const mapEl = $('map');
+  if (!mapEl) return;
+
+  state.map = L.map('map', { zoomControl: true }).setView([40.2, -8.4], 6);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(state.map);
+
+  state.marker = L.marker([40.2, -8.4], { draggable: true }).addTo(state.map);
+
+  state.marker.on('dragend', () => {
+    const ll = state.marker.getLatLng();
+    syncInputsFromLatLng(ll.lat, ll.lng);
+    scheduleReloadFromMap();
+  });
+
+  state.map.on('click', (e) => {
+    state.marker.setLatLng(e.latlng);
+    syncInputsFromLatLng(e.latlng.lat, e.latlng.lng);
+    scheduleReloadFromMap();
+  });
+}
+
+function scheduleReloadFromMap() {
+  clearTimeout(state.reloadTimer);
+  state.reloadTimer = setTimeout(() => {
+    const ll = state.marker.getLatLng();
+    loadAtCoordinates(ll.lat, ll.lng, { updateLabel: true });
+  }, 550);
+}
+
+/**
+ * @param {object} opts
+ * @param {boolean} [opts.updateLabel] — se true (omissão), tenta reverse geocode quando não há label
+ * @param {string} [opts.label] — texto fixo do local
+ * @param {string} [opts.timezone] — se já conhecido (ex.: resultado da pesquisa)
+ * @param {string} [opts.locationHint] — texto extra sob o label (mapa / pesquisa)
+ */
+async function loadAtCoordinates(lat, lon, opts = {}) {
   hideError();
   $('loading').classList.remove('hidden');
   $('mainContent').classList.add('hidden');
 
+  const updateLabel = opts.updateLabel !== false;
+
   try {
+    let timezone = opts.timezone;
+    let utcPre = 0;
+    if (!timezone) {
+      const z = await resolveTimezone(lat, lon);
+      timezone = z.timezone;
+      utcPre = z.utc_offset_seconds;
+    }
+
     const [marine, forecast] = await Promise.all([
-      loadMarine(place.latitude, place.longitude, place.timezone),
-      loadForecast(place.latitude, place.longitude, place.timezone),
+      loadMarine(lat, lon, timezone),
+      loadForecast(lat, lon, timezone),
     ]);
-    state.marine = marine;
-    state.forecast = forecast;
+
+    let placeLabel = opts.label;
+    if (!placeLabel && updateLabel) {
+      try {
+        const rev = await reverseGeocode(lat, lon);
+        if (rev) placeLabel = formatPlace(rev);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!placeLabel) placeLabel = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
 
     const aligned = alignByTime(marine, forecast);
-    if (!aligned.times.length) throw new Error('Sem dados horários para esta localização.');
+    if (!aligned.times.length) throw new Error('Sem dados horários para este ponto.');
 
-    const offsetStr = formatMetOffset(forecast.utc_offset_seconds ?? 0);
+    const offsetStr = formatMetOffset(forecast.utc_offset_seconds ?? utcPre ?? 0);
     const dayKeys = aligned.times.map((t) => t.slice(0, 10));
-    const astroByDay = await loadAstroSeries(place.latitude, place.longitude, dayKeys, offsetStr);
-    state.astroByDay = astroByDay;
+    const astroByDay = await loadAstroSeries(lat, lon, dayKeys, offsetStr);
 
-    const scores = computeHourlyScores(place.latitude, place.longitude, aligned, astroByDay);
+    const scores = computeHourlyScores(lat, lon, aligned, astroByDay);
     const dayData = groupByDay(aligned.times, scores, aligned.sea);
+    const inland = isInlandContext();
+
+    state.bundle = {
+      aligned,
+      scores,
+      dayData,
+      astroByDay,
+      forecast,
+      isInland: inland,
+      placeLabel,
+      tz: timezone,
+      lat,
+      lon,
+      marineMeta: { latitude: marine.latitude, longitude: marine.longitude },
+    };
 
     const today = aligned.times[0].slice(0, 10);
     fillDaySelect(dayData, today);
 
     const renderForDate = (dateKey) => {
-      renderSummary(dayData, { lat: place.latitude, lon: place.longitude, timezone: place.timezone }, dateKey, astroByDay);
+      const dayRow = dayData.find((d) => d.date === dateKey);
+      const dayAvg = dayRow?.avgScore ?? 0;
+      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland);
+      renderSummary(
+        dayData,
+        { lat, lon, timezone },
+        dateKey,
+        astroByDay,
+        state.bundle.marineMeta
+      );
       const { labels, scores: sc, seaNorm } = sliceDay(aligned.times, scores, aligned.sea, dateKey);
       updateChart(labels, sc, seaNorm);
     };
@@ -571,13 +850,33 @@ async function selectPlace(place) {
     renderForDate($('daySelect').value);
     renderForecastList(dayData);
 
-    $('locationLabel').textContent = formatPlace(place);
+    const hint =
+      opts.locationHint ||
+      '<span class="muted">Afinar no mapa ou nas coordenadas e «Aplicar» para recalcular.</span>';
+    $('locationLabel').innerHTML = `<strong>Ponto ativo:</strong> ${placeLabel}<br/>${hint}`;
     $('mainContent').classList.remove('hidden');
   } catch (e) {
     showError(e.message || 'Erro ao carregar dados.');
   } finally {
     $('loading').classList.add('hidden');
   }
+}
+
+function selectPlaceFromSearch(place) {
+  const lat = place.latitude;
+  const lon = place.longitude;
+  if (state.map && state.marker) {
+    state.map.setView([lat, lon], 12);
+    state.marker.setLatLng([lat, lon]);
+  }
+  syncInputsFromLatLng(lat, lon);
+  return loadAtCoordinates(lat, lon, {
+    updateLabel: false,
+    label: formatPlace(place),
+    timezone: place.timezone,
+    locationHint:
+      '<span class="muted">Arrasta o pin no mapa até ao cais, barco ou margem exacta onde vais pescar.</span>',
+  });
 }
 
 function setupSearch() {
@@ -608,7 +907,8 @@ function setupSearch() {
           li.addEventListener('click', () => {
             input.value = formatPlace(r);
             hideSug();
-            selectPlace(r);
+            initMap();
+            selectPlaceFromSearch(r);
           });
           li.addEventListener('keydown', (ev) => {
             if (ev.key === 'Enter') li.click();
@@ -630,7 +930,8 @@ function setupSearch() {
         showError('Nenhum local encontrado. Tente outro nome.');
         return;
       }
-      await selectPlace(results[0]);
+      initMap();
+      selectPlaceFromSearch(results[0]);
     } catch (e) {
       showError(e.message || 'Falha na pesquisa.');
     }
@@ -646,31 +947,42 @@ function setupSearch() {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
         hideError();
-        try {
-          const tz = await resolveTimezone(lat, lon);
-          let place = {
-            name: 'Aqui',
-            latitude: lat,
-            longitude: lon,
-            timezone: tz,
-            country: '',
-            admin1: '',
-          };
-          try {
-            const rev = await reverseGeocode(lat, lon);
-            if (rev) place = { ...rev, timezone: tz };
-          } catch {
-            /* mantém nome genérico */
-          }
-          input.value = formatPlace(place);
-          await selectPlace(place);
-        } catch (e) {
-          showError(e.message || 'Falha ao resolver fuso horário.');
-        }
+        initMap();
+        state.map.setView([lat, lon], 13);
+        state.marker.setLatLng([lat, lon]);
+        syncInputsFromLatLng(lat, lon);
+        await loadAtCoordinates(lat, lon, { updateLabel: true });
       },
       () => showError('Não foi possível obter a localização. Verifique as permissões.'),
       { enableHighAccuracy: true, timeout: 15000 }
     );
+  });
+
+  $('btnApplyCoords').addEventListener('click', () => {
+    const ll = getLatLonFromInputs();
+    if (!ll) {
+      showError('Latitude e longitude inválidas. Use graus decimais (ex.: -23.03, -43.12).');
+      return;
+    }
+    hideError();
+    initMap();
+    state.map.setView([ll.lat, ll.lon], 13);
+    state.marker.setLatLng([ll.lat, ll.lon]);
+    loadAtCoordinates(ll.lat, ll.lon, { updateLabel: true });
+  });
+
+  $('waterContext').addEventListener('change', () => {
+    if (!state.marker) return;
+    const ll = state.marker.getLatLng();
+    const b = state.bundle;
+    loadAtCoordinates(ll.lat, ll.lng, {
+      updateLabel: false,
+      label: b?.placeLabel,
+      timezone: b?.tz,
+      locationHint: b?.placeLabel
+        ? '<span class="muted">Tipo de água alterado — dados recalculados para o mesmo ponto.</span>'
+        : undefined,
+    });
   });
 
   document.addEventListener('click', (e) => {
@@ -685,3 +997,4 @@ $('metricsToggle').addEventListener('click', () => {
 });
 
 setupSearch();
+initMap();
