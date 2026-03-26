@@ -36,8 +36,8 @@ function hideError() {
   $('errorBox').classList.add('hidden');
 }
 
-async function fetchJson(url, init) {
-  const res = await fetch(url, init);
+async function fetchJson(url, init = {}) {
+  const res = await fetch(url, { ...init, cache: 'no-store' });
   if (!res.ok) throw new Error(`Pedido falhou (${res.status})`);
   const data = await res.json();
   if (data.error) throw new Error(data.reason || 'Erro na API');
@@ -88,6 +88,7 @@ async function reverseGeocode(lat, lon) {
     'accept-language': 'pt',
   });
   const res = await fetch(`${NOMINATIM_REVERSE}?${params}`, {
+    cache: 'no-store',
     headers: { 'Accept-Language': 'pt', 'User-Agent': 'PescaPWA/1.0 (https://github.com/nandocg36/Site-de-pesca)' },
   });
   if (!res.ok) return null;
