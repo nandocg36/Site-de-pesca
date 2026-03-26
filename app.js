@@ -83,6 +83,7 @@ async function loadMarine(lat, lon, timezone) {
     latitude: String(lat),
     longitude: String(lon),
     hourly: 'sea_level_height_msl,sea_surface_temperature,wave_height',
+    past_days: '3',
     forecast_days: '8',
     timezone,
     cell_selection: 'sea',
@@ -126,6 +127,7 @@ async function loadForecast(lat, lon, timezone) {
     longitude: String(lon),
     hourly,
     current,
+    past_days: '3',
     forecast_days: '8',
     timezone,
     wind_speed_unit: 'kmh',
@@ -295,6 +297,7 @@ function alignByTime(marine, forecast) {
   const cloud = [];
   const weatherCode = [];
   const cape = [];
+  const apparent = [];
   for (let i = 0; i < mt.length; i++) {
     const t = mt[i];
     const j = idxF.get(t);
@@ -304,6 +307,7 @@ function alignByTime(marine, forecast) {
     sst.push(marine.hourly.sea_surface_temperature?.[i] ?? null);
     wave.push(marine.hourly.wave_height?.[i] ?? null);
     temp.push(forecast.hourly.temperature_2m[j]);
+    apparent.push(forecast.hourly.apparent_temperature?.[j] ?? null);
     press.push(forecast.hourly.pressure_msl[j]);
     const id = forecast.hourly.is_day?.[j];
     isDay.push(id === 1 ? 1 : id === 0 ? 0 : null);
@@ -317,7 +321,25 @@ function alignByTime(marine, forecast) {
     weatherCode.push(forecast.hourly.weather_code?.[j] ?? null);
     cape.push(forecast.hourly.cape?.[j] ?? null);
   }
-  return { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud, weatherCode, cape };
+  return {
+    times,
+    sea,
+    sst,
+    wave,
+    temp,
+    apparent,
+    press,
+    isDay,
+    wind,
+    gust,
+    windDir,
+    rain,
+    rainProb,
+    rh,
+    cloud,
+    weatherCode,
+    cape,
+  };
 }
 
 function normalize(arr, invert = false) {
@@ -397,6 +419,170 @@ function waveComfortMeters(waveHeight, isInland) {
   return 1 - ((h - 0.4) / 2.4) * 0.8;
 }
 
+/** Pressão absoluta: zona “normal” perto de 1013 hPa (modelo). */
+function pressureLevelComfort(hPa) {
+  if (hPa == null || !Number.isFinite(hPa)) return 0.55;
+  const d = Math.abs(hPa - 1013);
+  if (d <= 6) return 1;
+  if (d >= 28) return 0.38;
+  return 1 - ((d - 6) / 22) * 0.62;
+}
+
+/** Sensação térmica: conforto para estar na plataforma (não é “peixe gosta de X °C”). */
+function apparentTempComfortCelsius(app) {
+  if (app == null || !Number.isFinite(app)) return 0.55;
+  if (app >= 16 && app <= 30) return 1;
+  if (app < 10) return Math.max(0.2, 0.35 + app * 0.015);
+  if (app < 16) return 0.35 + ((app - 10) / 6) * 0.65;
+  if (app <= 34) return 1 - ((app - 30) / 4) * 0.45;
+  return Math.max(0.22, 0.55 - (app - 34) * 0.04);
+}
+
+function rhComfortPct(rh) {
+  if (rh == null || !Number.isFinite(rh)) return 0.55;
+  if (rh >= 40 && rh <= 78) return 1;
+  if (rh < 40) return 0.45 + (rh / 40) * 0.55;
+  return Math.max(0.35, 1 - (rh - 78) / 22 * 0.65);
+}
+
+/** Céu parcial costuma ser ok; muito nublado ou céu limpo extremo ligeiramente neutro. */
+function cloudCoverComfort(pct) {
+  if (pct == null || !Number.isFinite(pct)) return 0.55;
+  if (pct >= 25 && pct <= 85) return 1;
+  if (pct < 25) return 0.72 + (pct / 25) * 0.28;
+  return Math.max(0.4, 1 - (pct - 85) / 15 * 0.6);
+}
+
+/** Código WMO: penaliza chuva forte, trovoada, neblina densa; favorece tempo mais calmo. */
+function weatherCodeFishingScore(code) {
+  if (code == null || !Number.isFinite(code)) return 0.55;
+  const c = Math.round(code);
+  if (c === 0 || c === 1) return 1;
+  if (c === 2) return 0.95;
+  if (c === 3) return 0.82;
+  if (c === 45 || c === 48) return 0.55;
+  if (c >= 51 && c <= 57) return 0.72;
+  if (c >= 61 && c <= 67) {
+    if (c <= 63) return 0.55;
+    return 0.35;
+  }
+  if (c >= 71 && c <= 77) return 0.45;
+  if (c >= 80 && c <= 82) return c === 80 ? 0.52 : c === 81 ? 0.38 : 0.22;
+  if (c === 85 || c === 86) return 0.42;
+  if (c === 95) return 0.25;
+  if (c === 96 || c === 99) return 0.12;
+  return 0.65;
+}
+
+/** CAPE alto = mais convecção; penaliza levemente no índice de conforto/pesca. */
+function capeComfortScore(cape) {
+  if (cape == null || !Number.isFinite(cape)) return 0.62;
+  if (cape < 400) return 1;
+  if (cape >= 3500) return 0.25;
+  return 1 - ((cape - 400) / 3100) * 0.75;
+}
+
+function slicePrevHours(arr, i, hours) {
+  const out = [];
+  const from = Math.max(0, i - hours);
+  for (let k = from; k < i; k++) out.push(arr[k]);
+  return out;
+}
+
+function meanFinite(arr) {
+  const v = arr.filter((x) => x != null && Number.isFinite(x));
+  if (!v.length) return null;
+  return v.reduce((a, b) => a + b, 0) / v.length;
+}
+
+function maxFinite(arr) {
+  const v = arr.filter((x) => x != null && Number.isFinite(x));
+  if (!v.length) return null;
+  return Math.max(...v);
+}
+
+/**
+ * Contexto recente (até ~3 dias de série): chuva acumulada, rajadas e estabilidade de pressão.
+ * Melhora o índice quando os dias anteriores no modelo estão mais “calmos”.
+ */
+function recentContextScore(i, press, rain, gust) {
+  const r48 = slicePrevHours(rain, i, 48);
+  const g48 = slicePrevHours(gust, i, 48);
+  const rainSum = r48.reduce((a, x) => a + (x != null && Number.isFinite(x) ? x : 0), 0);
+  const gustMax = maxFinite(g48);
+  let rainS = 1;
+  if (rainSum > 0) {
+    rainS = Math.max(0.2, 1 - Math.min(1, rainSum / 55));
+  }
+  let gustS = 1;
+  if (gustMax != null) {
+    gustS = Math.max(0.22, 1 - Math.min(1, Math.max(0, gustMax - 18) / 42));
+  }
+  let pressS = 0.75;
+  if (i >= 24 && press[i] != null && press[i - 24] != null) {
+    const dp = Math.abs(press[i] - press[i - 24]);
+    if (dp < 2) pressS = 1;
+    else if (dp > 12) pressS = 0.35;
+    else pressS = 1 - ((dp - 2) / 10) * 0.65;
+  } else if (i >= 6 && press[i] != null) {
+    const past = slicePrevHours(press, i, 6);
+    const m = meanFinite(past);
+    if (m != null) {
+      const dp = Math.abs(press[i] - m);
+      pressS = dp < 1.2 ? 1 : dp > 5 ? 0.45 : 1 - ((dp - 1.2) / 3.8) * 0.55;
+    }
+  }
+  return Math.max(0, Math.min(1, 0.42 * rainS + 0.33 * gustS + 0.25 * pressS));
+}
+
+/** Pesos relativos na costa (normalizados para somar 1 em computeHourlyScoresDetailed). */
+const SCORE_W_COAST = {
+  tideTurn: 82,
+  tideSpeed: 45,
+  moon: 92,
+  sun: 78,
+  pressLevel: 68,
+  pressTrend: 78,
+  tempStab: 48,
+  apparent: 58,
+  wind: 75,
+  rain: 75,
+  rh: 38,
+  cloud: 38,
+  wxCode: 48,
+  cape: 28,
+  wave: 48,
+  sst: 48,
+  context: 63,
+};
+
+const SCORE_W_INLAND = {
+  tideTurn: 38,
+  tideSpeed: 22,
+  moon: 118,
+  sun: 95,
+  pressLevel: 78,
+  pressTrend: 88,
+  tempStab: 55,
+  apparent: 62,
+  wind: 88,
+  rain: 88,
+  rh: 44,
+  cloud: 44,
+  wxCode: 54,
+  cape: 34,
+  wave: 22,
+  sst: 52,
+  context: 68,
+};
+
+function normalizeScoreWeights(wmap) {
+  const t = Object.values(wmap).reduce((a, b) => a + b, 0);
+  const out = {};
+  for (const k of Object.keys(wmap)) out[k] = wmap[k] / t;
+  return out;
+}
+
 function compassPt(deg) {
   if (deg == null || !Number.isFinite(deg)) return '';
   const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
@@ -458,6 +644,7 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
     sst,
     wave,
     temp,
+    apparent,
     press,
     isDay,
     wind,
@@ -471,7 +658,10 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
     cape,
   } = aligned;
   const wcodes = weatherCode || [];
+  const appSeries = apparent || [];
   const n = times.length;
+  const W = normalizeScoreWeights(isInland ? SCORE_W_INLAND : SCORE_W_COAST);
+
   const tideTurn = new Array(n).fill(0);
   const tideSpeed = new Array(n).fill(0);
   for (let i = 0; i < n; i++) {
@@ -492,15 +682,21 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
   const speedSweet = speedN.map((v) => 1 - Math.abs(v - 0.45) * 1.8).map((x) => Math.max(0, Math.min(1, x)));
 
   const dPress = press.map((p, i) => (i === 0 ? 0 : p - press[i - 1]));
-  const pressScore = dPress.map((dp) => {
+  const pressTrendScore = dPress.map((dp) => {
     if (dp < -2.5) return 0.2;
     if (dp < -1.2) return 0.45;
     if (dp > 2) return 0.55;
     return 0.85;
   });
 
+  const pressLevelScore = press.map((p) => pressureLevelComfort(p));
+
   const dTemp = temp.map((t, i) => (i === 0 ? 0 : Math.abs(t - temp[i - 1])));
-  const tempScore = dTemp.map((dt) => Math.max(0, Math.min(1, 1 - dt / 4)));
+  const tempStabScore = dTemp.map((dt) => Math.max(0, Math.min(1, 1 - dt / 4)));
+
+  const apparentScore = temp.map((t, i) =>
+    apparentTempComfortCelsius(appSeries[i] != null && Number.isFinite(appSeries[i]) ? appSeries[i] : t)
+  );
 
   const sstScore = normalize(
     sst.map((v) => (v == null ? null : v)),
@@ -510,6 +706,15 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
   const windScore = wind.map((w, i) => windComfortKmh(w, gust[i]));
   const rainScore = rain.map((m, i) => rainComfort(m, rainProb[i]));
   const waveScore = wave.map((h) => waveComfortMeters(h, isInland));
+  const rhScore = rh.map((x) => rhComfortPct(x));
+  const cloudScore = cloud.map((x) => cloudCoverComfort(x));
+  const wxScore = wcodes.map((c) => weatherCodeFishingScore(c));
+  const capeScore = (cape || []).map((x) => capeComfortScore(x));
+
+  const contextScore = new Array(n);
+  for (let i = 0; i < n; i++) {
+    contextScore[i] = recentContextScore(i, press, rain, gust);
+  }
 
   const scores = [];
   const details = [];
@@ -549,19 +754,26 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
     let moonComb = Math.min(1, 0.52 * moonP + 0.32 * moonEv + 0.12 * (0.5 + Math.abs(illum - 0.5)));
     moonComb = Math.min(1, moonComb + solunarBoost * 0.22);
 
-    const sstS = sst[i] != null ? 0.06 * (sstScore[i] || 0.5) : 0.03;
+    const sstPart = sst[i] != null && Number.isFinite(sst[i]) ? sstScore[i] : 0.55;
 
     const raw =
-      (isInland ? 0.06 : 0.2) * turnN[i] +
-      (isInland ? 0.04 : 0.08) * speedSweet[i] +
-      0.17 * moonComb +
-      0.13 * sunB +
-      0.09 * pressScore[i] +
-      0.07 * tempScore[i] +
-      0.08 * windScore[i] +
-      0.07 * rainScore[i] +
-      (isInland ? 0.03 : 0.06) * waveScore[i] +
-      sstS;
+      W.tideTurn * turnN[i] +
+      W.tideSpeed * speedSweet[i] +
+      W.moon * moonComb +
+      W.sun * sunB +
+      W.pressLevel * pressLevelScore[i] +
+      W.pressTrend * pressTrendScore[i] +
+      W.tempStab * tempStabScore[i] +
+      W.apparent * apparentScore[i] +
+      W.wind * windScore[i] +
+      W.rain * rainScore[i] +
+      W.rh * rhScore[i] +
+      W.cloud * cloudScore[i] +
+      W.wxCode * wxScore[i] +
+      W.cape * capeScore[i] +
+      W.wave * waveScore[i] +
+      W.sst * sstPart +
+      W.context * contextScore[i];
 
     scores.push(Math.round(Math.max(0, Math.min(100, raw * 100))));
     details.push({
@@ -569,15 +781,28 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
       speedSweet: speedSweet[i],
       moonComb,
       sunB,
-      pressScore: pressScore[i],
-      tempScore: tempScore[i],
+      pressLevelScore: pressLevelScore[i],
+      pressTrendScore: pressTrendScore[i],
+      tempStabScore: tempStabScore[i],
+      apparentScore: apparentScore[i],
       windScore: windScore[i],
       rainScore: rainScore[i],
       waveScore: waveScore[i],
+      rhScore: rhScore[i],
+      cloudScore: cloudScore[i],
+      wxScore: wxScore[i],
+      capeScore: capeScore[i],
+      contextScore: contextScore[i],
+      /** Compat: explicações antigas usam pressScore / tempScore */
+      pressScore: pressTrendScore[i],
+      tempScore: tempStabScore[i],
       sstPresent: sst[i] != null && Number.isFinite(sst[i]),
       isDay: id,
       dPress: i === 0 ? 0 : dPress[i],
       dTemp: i === 0 ? 0 : dTemp[i],
+      tempC: temp[i],
+      appTempC: appSeries[i],
+      pressHpa: press[i],
       windKmh: wind[i],
       gustKmh: gust[i],
       windDir: windDir[i],
@@ -623,6 +848,20 @@ function weekdayPt(isoDate) {
 function weekdayShort(isoDate) {
   const d = new Date(isoDate + 'T12:00:00');
   return d.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+/** YYYY-MM-DD do “hoje” no fuso da previsão (alinhado às strings locais da API). */
+function todayDateKeyInTimezone(tz) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz || 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  } catch (_) {
+    return new Date().toISOString().slice(0, 10);
+  }
 }
 
 function hourFromTimeStr(t) {
@@ -981,16 +1220,60 @@ function buildHourExplanations(detail, isInland) {
     }
   }
 
-  if (detail.pressScore >= 0.78) {
-    lines.push('Pressão: <strong>mais estável</strong> (pouca queda na última hora).');
-  } else if (detail.pressScore <= 0.48) {
-    lines.push('Pressão: <strong>queda rápida</strong> — o tempo pode ficar instável.');
+  if (detail.pressHpa != null && Number.isFinite(detail.pressHpa)) {
+    if (detail.pressLevelScore >= 0.78) {
+      lines.push(`Pressão ao nível do mar: <strong>${Math.round(detail.pressHpa)} hPa</strong> — dentro da faixa “normal” no modelo.`);
+    } else if (detail.pressLevelScore <= 0.45) {
+      lines.push(`Pressão: <strong>${Math.round(detail.pressHpa)} hPa</strong> — valor mais extremo no modelo (longe da média típica).`);
+    }
   }
 
-  if (detail.tempScore >= 0.72) {
+  if (detail.pressTrendScore >= 0.78) {
+    lines.push('Tendência da pressão: <strong>sem queda brusca</strong> na última hora.');
+  } else if (detail.pressTrendScore <= 0.48) {
+    lines.push('Tendência da pressão: <strong>mudança rápida</strong> — tempo pode ficar instável.');
+  }
+
+  if (detail.tempStabScore >= 0.72) {
     lines.push('Temperatura do ar: <strong>mudou pouco</strong> na última hora.');
-  } else if (detail.tempScore <= 0.45) {
+  } else if (detail.tempStabScore <= 0.45) {
     lines.push('Temperatura do ar: <strong>variação forte</strong> na última hora.');
+  }
+
+  if (detail.tempC != null && Number.isFinite(detail.tempC)) {
+    const ap =
+      detail.appTempC != null && Number.isFinite(detail.appTempC)
+        ? ` · sensação ~${detail.appTempC.toFixed(1)} °C`
+        : '';
+    lines.push(`Ar: <strong>${detail.tempC.toFixed(1)} °C</strong>${ap} (conforto na plataforma).`);
+  }
+
+  if (detail.rhScore != null) {
+    if (detail.rhScore >= 0.78 && detail.rhPct != null) {
+      lines.push(`Umidade: <strong>${Math.round(detail.rhPct)} %</strong> — faixa confortável.`);
+    } else if (detail.rhScore <= 0.48 && detail.rhPct != null) {
+      lines.push(`Umidade: <strong>${Math.round(detail.rhPct)} %</strong> — muito seca ou muito húmida no modelo.`);
+    }
+  }
+
+  if (detail.cloudScore != null) {
+    if (detail.cloudScore >= 0.78 && detail.cloudPct != null) {
+      lines.push(`Céu: <strong>${Math.round(detail.cloudPct)} %</strong> de nuvens — condição equilibrada.`);
+    } else if (detail.cloudScore <= 0.45 && detail.cloudPct != null) {
+      lines.push(`Céu: <strong>${Math.round(detail.cloudPct)} %</strong> de nuvens — muito claro ou muito fechado.`);
+    }
+  }
+
+  if (detail.capeScore != null && detail.capeScore <= 0.45) {
+    lines.push('Instabilidade (CAPE): <strong>energia de convecção elevada</strong> no modelo — atenção a pancadas/trovoadas.');
+  }
+
+  if (detail.contextScore != null) {
+    if (detail.contextScore >= 0.78) {
+      lines.push('Dias anteriores na série: <strong>menos chuva acumulada e vento mais calmo</strong> — contexto favorável no modelo.');
+    } else if (detail.contextScore <= 0.42) {
+      lines.push('Dias anteriores na série: <strong>chuva ou rajadas fortes recentes</strong> — contexto mais difícil no modelo.');
+    }
   }
 
   if (detail.sstPresent) {
@@ -1010,6 +1293,16 @@ function buildHourExplanations(detail, isInland) {
 
 function formatMetricHour(detail, isInland) {
   const parts = [];
+  if (detail.tempC != null && Number.isFinite(detail.tempC)) {
+    const ap =
+      detail.appTempC != null && Number.isFinite(detail.appTempC)
+        ? ` (sens. ${detail.appTempC.toFixed(1)}°)`
+        : '';
+    parts.push(`${detail.tempC.toFixed(1)} °C${ap}`);
+  }
+  if (detail.pressHpa != null && Number.isFinite(detail.pressHpa)) {
+    parts.push(`${Math.round(detail.pressHpa)} hPa`);
+  }
   if (detail.windKmh != null && Number.isFinite(detail.windKmh)) {
     const g = detail.gustKmh != null && Number.isFinite(detail.gustKmh) ? ` · rajadas ${Math.round(detail.gustKmh)} km/h` : '';
     const dir = compassPt(detail.windDir);
@@ -1129,33 +1422,37 @@ function findContiguousWindows(dayIndices, scores, predicate) {
   return wins.map(([a, b]) => ({ a, b, len: b - a + 1, avg: mean(dayIndices.slice(a, b + 1).map((gi) => scores[gi])) }));
 }
 
+const INDEX_WEIGHT_ROWS_DEF = [
+  ['tideTurn', 'Maré — viragem (curva de nível)'],
+  ['tideSpeed', 'Maré — ritmo do fluxo'],
+  ['moon', 'Lua, solunar e fase'],
+  ['sun', 'Sol — nascer / pôr / crepúsculo'],
+  ['pressLevel', 'Pressão — valor (zona de conforto no modelo)'],
+  ['pressTrend', 'Pressão — tendência hora a hora'],
+  ['tempStab', 'Temperatura do ar — estabilidade'],
+  ['apparent', 'Sensação térmica (conforto na plataforma)'],
+  ['wind', 'Vento e rajadas'],
+  ['rain', 'Chuva e probabilidade'],
+  ['rh', 'Umidade relativa'],
+  ['cloud', 'Nebulosidade (céu)'],
+  ['wxCode', 'Tipo de tempo (código WMO)'],
+  ['cape', 'Instabilidade atmosférica (CAPE)'],
+  ['wave', 'Altura de onda'],
+  ['sst', 'Temperatura superficial do mar (SST)'],
+  ['context', 'Contexto recente (até ~3 dias na mesma série)'],
+];
+
 function getIndexWeightRows(isInland) {
-  if (isInland) {
-    return [
-      { label: 'Maré — viragem (modelo)', pct: 8 },
-      { label: 'Maré — ritmo do fluxo', pct: 5 },
-      { label: 'Lua, solunar e fase', pct: 21 },
-      { label: 'Sol — nascer / pôr / crepúsculo', pct: 16 },
-      { label: 'Pressão atmosférica', pct: 11 },
-      { label: 'Estabilidade da temperatura do ar', pct: 9 },
-      { label: 'Vento e rajadas', pct: 10 },
-      { label: 'Chuva e probabilidade', pct: 9 },
-      { label: 'Ondas (peso reduzido)', pct: 4 },
-      { label: 'Temperatura superficial do mar (SST)', pct: 7 },
-    ];
+  const nw = normalizeScoreWeights(isInland ? SCORE_W_INLAND : SCORE_W_COAST);
+  const rows = INDEX_WEIGHT_ROWS_DEF.map(([key, label]) => ({
+    label,
+    pct: Math.max(1, Math.round(nw[key] * 100)),
+  }));
+  const s = rows.reduce((a, r) => a + r.pct, 0);
+  if (s !== 100 && rows.length) {
+    rows[rows.length - 1].pct += 100 - s;
   }
-  return [
-    { label: 'Maré — viragem (modelo)', pct: 19 },
-    { label: 'Maré — ritmo do fluxo', pct: 8 },
-    { label: 'Lua, solunar e fase', pct: 16 },
-    { label: 'Sol — nascer / pôr / crepúsculo', pct: 12 },
-    { label: 'Pressão atmosférica', pct: 9 },
-    { label: 'Estabilidade da temperatura do ar', pct: 7 },
-    { label: 'Vento e rajadas', pct: 8 },
-    { label: 'Chuva e probabilidade', pct: 7 },
-    { label: 'Altura de onda', pct: 6 },
-    { label: 'Temperatura superficial do mar (SST)', pct: 8 },
-  ];
+  return rows;
 }
 
 function renderIndexWeights(isInland) {
@@ -1667,8 +1964,9 @@ async function loadFixedLocation() {
     };
     state.scoreDetails = scoreDetails;
 
-    const today = aligned.times[0].slice(0, 10);
-    fillDaySelect(dayData, today);
+    const todayKey = todayDateKeyInTimezone(timezone);
+    const defaultDay = dayData.some((d) => d.date === todayKey) ? todayKey : aligned.times[0].slice(0, 10);
+    fillDaySelect(dayData, defaultDay);
 
     const renderForDate = (dateKey) => {
       const dayRow = dayData.find((d) => d.date === dateKey);

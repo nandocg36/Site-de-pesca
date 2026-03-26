@@ -1,4 +1,4 @@
-const CACHE = 'pesca-v14';
+const CACHE = 'pesca-v15';
 const ASSETS = [
   './',
   './index.html',

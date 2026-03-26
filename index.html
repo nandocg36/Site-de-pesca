@@ -158,15 +158,17 @@
       <div class="drawer-panel hidden" id="drawerPanelMethod" role="region" aria-labelledby="drawerMethodHeading">
         <h3 class="drawer-panel-title" id="drawerMethodHeading">Como funciona o índice</h3>
         <ul class="metric-list">
-          <li><strong>Maré</strong> — extremos da <strong>tábua EPAGRI (Balneário Rincão)</strong> no painel do dia; o índice usa curva interpolada entre esses extremos. O <strong>Open-Meteo Marine</strong> aparece como comparativo de modelo.</li>
-          <li><strong>Ondas</strong> — altura significativa (API Marine), na costa.</li>
-          <li><strong>Vento e rajadas</strong> — a 10 m de altura (API de previsão).</li>
-          <li><strong>Chuva, umidade, nuvens</strong> — hora a hora (previsão).</li>
-          <li><strong>Solunar</strong> — janelas <em>major</em> e <em>minor</em> a partir dos horários astronômicos da lua (MET Norway), no estilo de várias tabelas de pesca.</li>
-          <li><strong>Lua e sol</strong> — fase em %, nascer e pôr da lua, posição no céu (MET Norway).</li>
-          <li><strong>Temperatura e pressão</strong> — ar ao nível do mar (previsão).</li>
+          <li><strong>Maré</strong> — curva hora a hora a partir da <strong>tábua EPAGRI</strong> (Balneário Rincão); viragem e ritmo do fluxo entram no índice.</li>
+          <li><strong>Pressão</strong> — valor ao nível do mar <em>e</em> tendência hora a hora (previsão Open-Meteo).</li>
+          <li><strong>Temperatura e sensação térmica</strong> — ar estável e conforto na plataforma (previsão).</li>
+          <li><strong>Chuva, probabilidade, umidade, nuvens</strong> — hora a hora (previsão).</li>
+          <li><strong>Tipo de tempo (WMO)</strong> e <strong>CAPE</strong> — chuva forte, trovoada e instabilidade (previsão).</li>
+          <li><strong>Vento e rajadas</strong> — a 10 m (previsão).</li>
+          <li><strong>Ondas</strong> e <strong>SST</strong> — modelo marinho (Open-Meteo Marine).</li>
+          <li><strong>Solunar, lua e sol</strong> — MET Norway (janelas major/minor, fase, nascer/pôr).</li>
+          <li><strong>Contexto recente</strong> — até ~3 dias de série na mesma API: chuva acumulada, rajadas e estabilidade de pressão antes da hora atual.</li>
         </ul>
-        <p class="muted small">Todos os números vêm das fontes citadas; o <strong>índice de 0 a 100</strong> é uma média ponderada desses sinais (não mede peixe diretamente).</p>
+        <p class="muted small">O <strong>índice de 0 a 100</strong> combina explicitamente todos estes sinais com pesos no menu “Pesos no índice”. Não mede peixe diretamente.</p>
       </div>
       <div class="drawer-panel hidden" id="drawerPanelWeights" role="region" aria-labelledby="drawerWeightsHeading">
         <h3 class="drawer-panel-title" id="drawerWeightsHeading">Pesos no índice</h3>
