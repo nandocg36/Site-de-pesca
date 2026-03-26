@@ -493,6 +493,62 @@ a {
   color: var(--bad);
 }
 
+.solunar-block,
+.tide-table-block {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border);
+}
+
+.subcard-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.tide-sub {
+  margin: 0.65rem 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.tide-ul {
+  margin: 0 0 0.35rem;
+  padding-left: 1.15rem;
+  font-size: 0.88rem;
+}
+
+.tide-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.tide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.tide-table th,
+.tide-table td {
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.tide-table th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .period-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -763,12 +819,22 @@ a {
   align-items: center;
 }
 
+.hourly-metrics {
+  grid-column: 1 / -1;
+  line-height: 1.45;
+  padding: 0.35rem 0 0;
+}
+
 @media (min-width: 480px) {
   .hourly-row {
     grid-template-columns: 4.5rem 1fr;
   }
 
   .hourly-meta {
+    grid-column: 2;
+  }
+
+  .hourly-metrics {
     grid-column: 2;
   }
 }

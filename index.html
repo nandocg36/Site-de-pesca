@@ -19,7 +19,7 @@
   <div class="app">
     <header class="hero">
       <div class="hero-inner">
-        <p class="hero-kicker">Previsão · maré · sol e lua</p>
+        <p class="hero-kicker">Dados reais · maré · ondas · vento · solunar</p>
         <h1>Horários de Pesca</h1>
         <p class="hero-lead">Escolhe o <strong>ponto exato</strong> no mapa (mar, estuário ou lago) e vê <strong>quando vale a pena ir</strong> — em texto e em gráfico.</p>
       </div>
@@ -82,12 +82,15 @@
         </button>
         <div class="accordion-panel hidden" id="metricsPanel">
           <ul class="metric-list">
-            <li><strong>Maré</strong> — variação hora a hora do nível do mar (Open-Meteo). Picos ajudam a marcar janelas; <em>não</em> substitui tábua oficial.</li>
-            <li><strong>Lua</strong> — fase e horários (MET Norway).</li>
-            <li><strong>Sol</strong> — nascer/pôr e “horas em torno da luz baixa”.</li>
-            <li><strong>Clima</strong> — temperatura e pressão (Open-Meteo).</li>
+            <li><strong>Maré</strong> — nível horário + <strong>preia-mar / baixa-mar</strong> estimados a partir da curva do modelo (Open-Meteo Marine). <em>Não</em> substitui tábua náutica oficial nem estação hidrográfica.</li>
+            <li><strong>Ondas</strong> — altura significativa (Marine API), na costa.</li>
+            <li><strong>Vento e rajadas</strong> — 10 m (Forecast API).</li>
+            <li><strong>Chuva, humidade, nuvens</strong> — hora a hora (Forecast).</li>
+            <li><strong>Solunar</strong> — janelas <em>major/minor</em> derivadas dos horários astronómicos da lua (MET Norway), no estilo de muitas tábuas de pesca.</li>
+            <li><strong>Lua e sol</strong> — fase %, subida/pôr, lua no céu (MET Norway).</li>
+            <li><strong>Temperatura e pressão</strong> — ar ao nível do mar (Forecast).</li>
           </ul>
-          <p class="muted small">O <strong>índice 0–100</strong> é uma estimativa; a secção <em>Recomendações do dia</em> traduz isso para português simples.</p>
+          <p class="muted small">Todos os valores numéricos vêm das APIs indicadas; o <strong>índice 0–100</strong> é uma combinação ponderada desses sinais (não é medição directa de “peixe”).</p>
         </div>
       </section>
 
@@ -95,6 +98,8 @@
         <h2 class="card-title">Recomendações do dia</h2>
         <p class="muted small" id="recIntro"></p>
         <div id="recVerdict" class="verdict-box"></div>
+        <div id="solunarBlock" class="solunar-block hidden"></div>
+        <div id="tideTableBlock" class="tide-table-block hidden"></div>
         <div id="recPeriods" class="period-grid"></div>
         <div id="recWindows" class="windows-row"></div>
       </section>
@@ -110,7 +115,7 @@
 
       <section class="card card-elevated" aria-label="Lista hora a hora">
         <h2 class="card-title">Hora a hora — o que esperar</h2>
-        <p class="muted small">Cada linha diz se a hora é boa ou fraca e <strong>porquê</strong> (maré, lua, sol, clima). Ordenado da melhor para a pior hora do dia.</p>
+        <p class="muted small">Cada linha mostra <strong>dados reais da hora</strong> (vento, chuva, ondas, etc.) e explica <strong>porquê</strong> o índice sobe ou desce.</p>
         <div class="hourly-sort-row">
           <label class="hourly-sort-label" for="hourlySort">Ordenar</label>
           <select id="hourlySort" class="day-select hourly-sort-select">
@@ -140,7 +145,10 @@
     </main>
 
     <footer class="footer muted small">
-      Mapas © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · Dados Open-Meteo e MET Norway.
+      Mapas © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+      · Previsão e marinho: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+      · Sol, lua e janelas solunar: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>.
+      Maré e ondas são <strong>modelo numérico</strong>, não tábua oficial.
     </footer>
   </div>
 

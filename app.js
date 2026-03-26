@@ -124,7 +124,7 @@ async function loadMarine(lat, lon, timezone) {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    hourly: 'sea_level_height_msl,sea_surface_temperature',
+    hourly: 'sea_level_height_msl,sea_surface_temperature,wave_height',
     forecast_days: '8',
     timezone,
     cell_selection: marineCellSelection(),
@@ -133,12 +133,25 @@ async function loadMarine(lat, lon, timezone) {
 }
 
 async function loadForecast(lat, lon, timezone) {
+  const hourly = [
+    'temperature_2m',
+    'pressure_msl',
+    'is_day',
+    'wind_speed_10m',
+    'wind_gusts_10m',
+    'wind_direction_10m',
+    'precipitation',
+    'precipitation_probability',
+    'relative_humidity_2m',
+    'cloud_cover',
+  ].join(',');
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    hourly: 'temperature_2m,pressure_msl,is_day',
+    hourly,
     forecast_days: '8',
     timezone,
+    wind_speed_unit: 'kmh',
   });
   return fetchJson(`${FORECAST_URL}?${params}`);
 }
@@ -184,6 +197,10 @@ function parseAstroDay(sunFeature, moonFeature) {
     moonrise: parseTimeMaybe(mp.moonrise?.time),
     moonset: parseTimeMaybe(mp.moonset?.time),
     moonphase: typeof mp.moonphase === 'number' ? mp.moonphase : null,
+    highMoon: parseTimeMaybe(mp.high_moon?.time),
+    lowMoon: parseTimeMaybe(mp.low_moon?.time),
+    moonAltHigh: typeof mp.high_moon?.disc_centre_elevation === 'number' ? mp.high_moon.disc_centre_elevation : null,
+    moonAltLow: typeof mp.low_moon?.disc_centre_elevation === 'number' ? mp.low_moon.disc_centre_elevation : null,
   };
 }
 
@@ -194,9 +211,17 @@ function alignByTime(marine, forecast) {
   const times = [];
   const sea = [];
   const sst = [];
+  const wave = [];
   const temp = [];
   const press = [];
   const isDay = [];
+  const wind = [];
+  const gust = [];
+  const windDir = [];
+  const rain = [];
+  const rainProb = [];
+  const rh = [];
+  const cloud = [];
   for (let i = 0; i < mt.length; i++) {
     const t = mt[i];
     const j = idxF.get(t);
@@ -204,12 +229,20 @@ function alignByTime(marine, forecast) {
     times.push(t);
     sea.push(marine.hourly.sea_level_height_msl[i]);
     sst.push(marine.hourly.sea_surface_temperature?.[i] ?? null);
+    wave.push(marine.hourly.wave_height?.[i] ?? null);
     temp.push(forecast.hourly.temperature_2m[j]);
     press.push(forecast.hourly.pressure_msl[j]);
     const id = forecast.hourly.is_day?.[j];
     isDay.push(id === 1 ? 1 : id === 0 ? 0 : null);
+    wind.push(forecast.hourly.wind_speed_10m?.[j] ?? null);
+    gust.push(forecast.hourly.wind_gusts_10m?.[j] ?? null);
+    windDir.push(forecast.hourly.wind_direction_10m?.[j] ?? null);
+    rain.push(forecast.hourly.precipitation?.[j] ?? null);
+    rainProb.push(forecast.hourly.precipitation_probability?.[j] ?? null);
+    rh.push(forecast.hourly.relative_humidity_2m?.[j] ?? null);
+    cloud.push(forecast.hourly.cloud_cover?.[j] ?? null);
   }
-  return { times, sea, sst, temp, press, isDay };
+  return { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud };
 }
 
 function normalize(arr, invert = false) {
@@ -263,12 +296,103 @@ function moonEventBoostFromTimes(moonrise, moonset) {
   };
 }
 
+/** Vento médio (km/h): quanto menor, mais confortável para pesca em terra/pequena embarcação. */
+function windComfortKmh(wind, gust) {
+  const w = wind != null && Number.isFinite(wind) ? wind : 0;
+  const g = gust != null && Number.isFinite(gust) ? gust : w;
+  const x = Math.max(w, g * 0.92);
+  if (x <= 10) return 1;
+  if (x >= 48) return 0.18;
+  return 1 - ((x - 10) / 38) * 0.82;
+}
+
+/** Chuva na hora anterior (mm) + probabilidade (%): menos é melhor. */
+function rainComfort(mm, prob) {
+  const p = prob != null && Number.isFinite(prob) ? prob : 0;
+  const m = mm != null && Number.isFinite(mm) ? mm : 0;
+  let s = 1 - Math.min(1, m / 4) * 0.85;
+  s *= 1 - (p / 100) * 0.35;
+  return Math.max(0.15, Math.min(1, s));
+}
+
+/** Altura de onda (m): costa; interior devolve neutro. */
+function waveComfortMeters(waveHeight, isInland) {
+  if (isInland) return 0.55;
+  const h = waveHeight;
+  if (h == null || !Number.isFinite(h)) return 0.55;
+  if (h <= 0.4) return 1;
+  if (h >= 2.8) return 0.2;
+  return 1 - ((h - 0.4) / 2.4) * 0.8;
+}
+
+function compassPt(deg) {
+  if (deg == null || !Number.isFinite(deg)) return '';
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+  const i = Math.round(deg / 45) % 8;
+  return dirs[(i + 8) % 8];
+}
+
+/**
+ * Preia-mar / baixa-mar a partir da série horária do modelo (picos e vales locais).
+ */
+function extractTideExtremesFromSeries(dayIndices, times, seaLevels) {
+  const pts = [];
+  for (const gi of dayIndices) {
+    const y = seaLevels[gi];
+    if (y == null || !Number.isFinite(y)) continue;
+    pts.push({ t: times[gi], ms: new Date(times[gi]).getTime(), y, gi });
+  }
+  if (pts.length < 3) return [];
+  const out = [];
+  for (let k = 1; k < pts.length - 1; k++) {
+    const a = pts[k - 1].y;
+    const b = pts[k].y;
+    const c = pts[k + 1].y;
+    if (b > a && b >= c) out.push({ ...pts[k], type: 'high', label: 'Preia-mar' });
+    if (b < a && b <= c) out.push({ ...pts[k], type: 'low', label: 'Baixa-mar' });
+  }
+  out.sort((u, v) => u.ms - v.ms);
+  return out;
+}
+
+/**
+ * Janelas estilo solunar major/minor a partir de eventos MET (lua no céu, subida/pôr).
+ * Major = ±1h em torno de high_moon e (moonrise|moonset) quando existirem.
+ * Minor = ±30 min em torno de low_moon.
+ */
+function buildSolunarWindows(astro) {
+  if (!astro) return { major: [], minor: [] };
+  const major = [];
+  const minor = [];
+  const pushWin = (arr, centerMs, halfHours, label) => {
+    if (centerMs == null) return;
+    arr.push({
+      start: centerMs - halfHours * 3600000,
+      end: centerMs + halfHours * 3600000,
+      label,
+      centerMs,
+    });
+  };
+  if (astro.highMoon) pushWin(major, astro.highMoon, 1, 'Lua no céu (máx.)');
+  if (astro.moonrise) pushWin(major, astro.moonrise, 1, 'Subida da lua');
+  if (astro.moonset) pushWin(major, astro.moonset, 1, 'Pôr da lua');
+  if (astro.lowMoon) pushWin(minor, astro.lowMoon, 0.5, 'Lua baixa no céu');
+  return { major, minor };
+}
+
+function hourOverlapsSolunar(tMs, windows) {
+  for (const w of windows) {
+    if (tMs >= w.start && tMs <= w.end) return w.label;
+  }
+  return null;
+}
+
 /**
  * Calcula índice horário e componentes normalizados (0–1) para explicar cada hora.
  * @returns {{ scores: number[], details: object[] }}
  */
-function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay) {
-  const { times, sea, sst, temp, press, isDay } = aligned;
+function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
+  const { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud } = aligned;
   const n = times.length;
   const tideTurn = new Array(n).fill(0);
   const tideSpeed = new Array(n).fill(0);
@@ -305,9 +429,14 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay) {
     false
   );
 
+  const windScore = wind.map((w, i) => windComfortKmh(w, gust[i]));
+  const rainScore = rain.map((m, i) => rainComfort(m, rainProb[i]));
+  const waveScore = wave.map((h) => waveComfortMeters(h, isInland));
+
   const scores = [];
   const details = [];
   const moonEvCache = new Map();
+  const solunarCache = new Map();
 
   for (let i = 0; i < n; i++) {
     const tStr = times[i];
@@ -315,6 +444,16 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay) {
     const tMs = d.getTime();
     const dayKey = tStr.slice(0, 10);
     const astro = astroByDay?.get(dayKey);
+
+    if (!solunarCache.has(dayKey)) {
+      solunarCache.set(dayKey, buildSolunarWindows(astro));
+    }
+    const { major, minor } = solunarCache.get(dayKey);
+    const solMajor = hourOverlapsSolunar(tMs, major);
+    const solMinor = hourOverlapsSolunar(tMs, minor);
+    let solunarBoost = 0;
+    if (solMajor) solunarBoost = 1;
+    else if (solMinor) solunarBoost = 0.55;
 
     const edgeB = astro ? sunEdgeBoost(tMs, astro.sunrise, astro.sunset) : 0.5;
     const id = isDay[i];
@@ -329,17 +468,21 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay) {
     }
     const moonEv = moonEvCache.get(dayKey)(tMs);
     const illum = astro?.moonphase != null ? astro.moonphase / 100 : 0.5;
-    const moonComb = Math.min(1, 0.55 * moonP + 0.35 * moonEv + 0.15 * (0.5 + Math.abs(illum - 0.5)));
+    let moonComb = Math.min(1, 0.52 * moonP + 0.32 * moonEv + 0.12 * (0.5 + Math.abs(illum - 0.5)));
+    moonComb = Math.min(1, moonComb + solunarBoost * 0.22);
 
-    const sstS = sst[i] != null ? 0.08 * (sstScore[i] || 0.5) : 0.04;
+    const sstS = sst[i] != null ? 0.06 * (sstScore[i] || 0.5) : 0.03;
 
     const raw =
-      0.28 * turnN[i] +
-      0.12 * speedSweet[i] +
-      0.22 * moonComb +
-      0.18 * sunB +
-      0.12 * pressScore[i] +
-      0.1 * tempScore[i] +
+      (isInland ? 0.06 : 0.2) * turnN[i] +
+      (isInland ? 0.04 : 0.08) * speedSweet[i] +
+      0.17 * moonComb +
+      0.13 * sunB +
+      0.09 * pressScore[i] +
+      0.07 * tempScore[i] +
+      0.08 * windScore[i] +
+      0.07 * rainScore[i] +
+      (isInland ? 0.03 : 0.06) * waveScore[i] +
       sstS;
 
     scores.push(Math.round(Math.max(0, Math.min(100, raw * 100))));
@@ -350,10 +493,23 @@ function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay) {
       sunB,
       pressScore: pressScore[i],
       tempScore: tempScore[i],
+      windScore: windScore[i],
+      rainScore: rainScore[i],
+      waveScore: waveScore[i],
       sstPresent: sst[i] != null && Number.isFinite(sst[i]),
       isDay: id,
       dPress: i === 0 ? 0 : dPress[i],
       dTemp: i === 0 ? 0 : dTemp[i],
+      windKmh: wind[i],
+      gustKmh: gust[i],
+      windDir: windDir[i],
+      rainMm: rain[i],
+      rainProbPct: rainProb[i],
+      rhPct: rh[i],
+      cloudPct: cloud[i],
+      waveM: wave[i],
+      solMajorLabel: solMajor,
+      solMinorLabel: solMinor,
     });
   }
 
@@ -418,34 +574,60 @@ function buildHourExplanations(detail, isInland) {
   const lo = 0.38;
   const lines = [];
 
+  if (detail.solMajorLabel) {
+    lines.push(`<strong>Solunar major</strong> (${detail.solMajorLabel}) — janela astronómica da lua no estilo tábua clássica.`);
+  } else if (detail.solMinorLabel) {
+    lines.push(`<strong>Solunar minor</strong> (${detail.solMinorLabel}) — influência mais suave.`);
+  }
+
   if (!isInland) {
     if (detail.turnN >= hi) {
-      lines.push('Maré: <strong>viragem ou mudança de fluxo</strong> — hora em que o modelo marca mais movimento no nível do mar (frequentemente janela interessante).');
+      lines.push('Maré: <strong>viragem ou mudança de fluxo</strong> no modelo de nível do mar.');
     } else if (detail.turnN <= lo) {
-      lines.push('Maré: <strong>pouca viragem</strong> nesta hora — o índice não é puxado pela maré.');
+      lines.push('Maré: <strong>pouca viragem</strong> nesta hora no modelo.');
     } else {
-      lines.push('Maré: influência <strong>média</strong> (nem pico nem vale forte no modelo).');
+      lines.push('Maré: influência <strong>média</strong> no modelo.');
     }
   } else {
-    lines.push('Água doce / interior: o sinal de <strong>maré no modelo é pouco fiável</strong> aqui; o índice depende mais de lua, sol e clima.');
+    lines.push('Interior: maré no modelo <strong>pouco fiável</strong> — peso maior em clima e lua/sol.');
   }
 
   if (detail.moonComb >= hi) {
-    lines.push('Lua: <strong>fase ou horário</strong> considerados favoráveis (tradição solunar).');
+    lines.push('Lua/solunar: <strong>conjunto favorável</strong> nesta hora.');
   } else if (detail.moonComb <= lo) {
-    lines.push('Lua: <strong>menos favorável</strong> nesta hora para o critério usado.');
+    lines.push('Lua/solunar: <strong>menos favorável</strong> para os critérios usados.');
   }
 
   if (detail.sunB >= hi) {
-    lines.push('Sol: <strong>perto do nascer, do pôr ou luz baixa</strong> — “horas douradas”.');
+    lines.push('Sol: <strong>luz baixa</strong> (nascer/pôr/crepúsculo).');
   } else if (detail.sunB <= 0.34) {
-    lines.push('Sol: <strong>sol alto ou noite</strong> sem janela de luz tão favorável.');
+    lines.push('Sol: <strong>sem janela de luz baixa</strong> forte nesta hora.');
+  }
+
+  if (detail.windScore >= 0.72) {
+    lines.push('Vento: <strong>moderado</strong> — boas condições para arremesso / mar calmo.');
+  } else if (detail.windScore <= 0.42) {
+    lines.push('Vento: <strong>forte ou rajadas altas</strong> — pode atrapalhar pesca exposta.');
+  }
+
+  if (detail.rainScore >= 0.72) {
+    lines.push('Chuva: <strong>pouca ou nenhuma</strong> prevista nesta hora.');
+  } else if (detail.rainScore <= 0.45) {
+    lines.push('Chuva: <strong>chuva ou alta probabilidade</strong> — conforto e visibilidade piores.');
+  }
+
+  if (!isInland && detail.waveM != null && Number.isFinite(detail.waveM)) {
+    if (detail.waveScore >= 0.75) {
+      lines.push(`Ondas: <strong>baixas</strong> (~${detail.waveM.toFixed(1)} m) no modelo.`);
+    } else if (detail.waveScore <= 0.4) {
+      lines.push(`Ondas: <strong>elevadas</strong> (~${detail.waveM.toFixed(1)} m) — mar mais mexido.`);
+    }
   }
 
   if (detail.pressScore >= 0.78) {
-    lines.push('Pressão: <strong>sem queda brusca</strong> na última hora — ar mais estável.');
+    lines.push('Pressão: <strong>estável</strong> (pouca queda na última hora).');
   } else if (detail.pressScore <= 0.48) {
-    lines.push('Pressão: <strong>queda ou mudança rápida</strong> — tempo pode instabilizar.');
+    lines.push('Pressão: <strong>queda rápida</strong> — tempo pode instabilizar.');
   }
 
   if (detail.tempScore >= 0.72) {
@@ -455,10 +637,37 @@ function buildHourExplanations(detail, isInland) {
   }
 
   if (detail.sstPresent) {
-    lines.push('Água do mar: há dado de temperatura superficial no modelo para esta grelha.');
+    lines.push('Temperatura da superfície do mar disponível no modelo para esta grelha.');
   }
 
   return lines;
+}
+
+function formatMetricHour(detail, isInland) {
+  const parts = [];
+  if (detail.windKmh != null && Number.isFinite(detail.windKmh)) {
+    const g = detail.gustKmh != null && Number.isFinite(detail.gustKmh) ? ` · raj. ${Math.round(detail.gustKmh)} km/h` : '';
+    const dir = compassPt(detail.windDir);
+    const dtxt = dir ? ` ${dir}` : '';
+    parts.push(`Vento ${Math.round(detail.windKmh)} km/h${g}${dtxt}`);
+  }
+  if (detail.rainMm != null && Number.isFinite(detail.rainMm)) {
+    const p =
+      detail.rainProbPct != null && Number.isFinite(detail.rainProbPct)
+        ? ` · prob. ${Math.round(detail.rainProbPct)}%`
+        : '';
+    parts.push(`Chuva ${detail.rainMm.toFixed(1)} mm${p}`);
+  }
+  if (!isInland && detail.waveM != null && Number.isFinite(detail.waveM)) {
+    parts.push(`Onda ~${detail.waveM.toFixed(2)} m`);
+  }
+  if (detail.rhPct != null && Number.isFinite(detail.rhPct)) {
+    parts.push(`Hum. ${Math.round(detail.rhPct)}%`);
+  }
+  if (detail.cloudPct != null && Number.isFinite(detail.cloudPct)) {
+    parts.push(`Nuvens ${Math.round(detail.cloudPct)}%`);
+  }
+  return parts.length ? parts.join(' · ') : '—';
 }
 
 function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
@@ -488,6 +697,7 @@ function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
     const q = hourQualityWords(r.score);
     const expl = buildHourExplanations(r.detail || {}, isInland);
     const isBest = r.score === bestScore && bestScore > 0;
+    const metricsLine = formatMetricHour(r.detail || {}, isInland);
     const row = document.createElement('article');
     row.className = `hourly-row ${q.cls}`;
     row.setAttribute('aria-label', `Hora ${formatHourLabel(r.time)}, índice ${r.score}`);
@@ -498,6 +708,7 @@ function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
         <span class="hourly-badge ${q.badge}">${q.label}</span>
         <span class="hourly-score">Índice ${r.score}/100${badgeExtra}</span>
       </div>
+      <div class="hourly-metrics muted small">${metricsLine}</div>
       <div class="hourly-why">
         <strong>Porquê:</strong>
         <ul>${expl.map((x) => `<li>${x}</li>`).join('')}</ul>
@@ -551,7 +762,71 @@ function findContiguousWindows(dayIndices, scores, predicate) {
   return wins.map(([a, b]) => ({ a, b, len: b - a + 1, avg: mean(dayIndices.slice(a, b + 1).map((gi) => scores[gi])) }));
 }
 
-function renderRecommendations(dateKey, times, scores, dayAvg, isInland) {
+function renderSolunarPanel(astro) {
+  const block = $('solunarBlock');
+  if (!block) return;
+  if (!astro) {
+    block.classList.add('hidden');
+    block.innerHTML = '';
+    return;
+  }
+  const { major, minor } = buildSolunarWindows(astro);
+  const fmt = (ms) =>
+    ms ? new Date(ms).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+  const majorLines = major
+    .map((w) => `<li><strong>${w.label}</strong>: ~${fmt(w.start)} – ${fmt(w.end)}</li>`)
+    .join('');
+  const minorLines = minor
+    .map((w) => `<li><strong>${w.label}</strong>: ~${fmt(w.start)} – ${fmt(w.end)}</li>`)
+    .join('');
+  if (!majorLines && !minorLines) {
+    block.classList.add('hidden');
+    block.innerHTML = '';
+    return;
+  }
+  block.classList.remove('hidden');
+  block.innerHTML = `
+    <h3 class="subcard-title">Janelas solunar (major / minor)</h3>
+    <p class="muted small">Calculadas a partir dos horários <strong>reais</strong> da lua (MET Norway), no estilo de muitas tábuas de pesca. Não são garantia de capturas.</p>
+    ${majorLines ? `<p class="tide-sub">Major</p><ul class="tide-ul">${majorLines}</ul>` : ''}
+    ${minorLines ? `<p class="tide-sub">Minor</p><ul class="tide-ul">${minorLines}</ul>` : ''}
+  `;
+}
+
+function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
+  const block = $('tideTableBlock');
+  if (!block) return;
+  if (isInland) {
+    block.classList.add('hidden');
+    block.innerHTML = '';
+    return;
+  }
+  const ex = extractTideExtremesFromSeries(dayIdx, times, sea);
+  if (!ex.length) {
+    block.classList.add('hidden');
+    block.innerHTML = '';
+    return;
+  }
+  block.classList.remove('hidden');
+  const rows = ex
+    .map(
+      (e) =>
+        `<tr><td>${e.label}</td><td>${formatHourLabel(e.t)}</td><td>${e.y.toFixed(2)} m</td></tr>`
+    )
+    .join('');
+  block.innerHTML = `
+    <h3 class="subcard-title">Preia-mar e baixa-mar (modelo)</h3>
+    <p class="muted small">Horários e alturas <strong>derivados da curva horária</strong> do Open-Meteo (não estação hidrográfica). Use sempre fonte oficial para navegação.</p>
+    <div class="tide-table-wrap">
+      <table class="tide-table">
+        <thead><tr><th></th><th>Hora (local)</th><th>Nível (modelo)</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroByDay, aligned) {
   const dayIdx = sliceDayIndices(times, dateKey);
   const intro = $('recIntro');
   const verdict = $('recVerdict');
@@ -563,10 +838,15 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland) {
     verdict.innerHTML = '';
     periodsEl.innerHTML = '';
     windowsEl.innerHTML = '';
+    $('solunarBlock')?.classList.add('hidden');
+    $('tideTableBlock')?.classList.add('hidden');
     return;
   }
 
-  intro.textContent = `Para ${weekdayPt(dateKey)}, com base no ponto que marcaste no mapa. O índice vai de 0 a 100 (estimativa, não garantia de peixe).`;
+  renderSolunarPanel(astroByDay?.get(dateKey));
+  renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland);
+
+  intro.textContent = `Para ${weekdayPt(dateKey)}, com dados reais de previsão (vento, chuva, ondas, maré-modelo, lua e sol). O índice 0–100 combina estes sinais — não garante peixe.`;
 
   const periodStats = PERIOD_DEFS.map((pd) => {
     const vals = [];
@@ -990,7 +1270,7 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
     const dayKeys = aligned.times.map((t) => t.slice(0, 10));
     const astroByDay = await loadAstroSeries(lat, lon, dayKeys, offsetStr);
 
-    const { scores, details: scoreDetails } = computeHourlyScoresDetailed(lat, lon, aligned, astroByDay);
+    const { scores, details: scoreDetails } = computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, inland);
     const dayData = groupByDay(aligned.times, scores, aligned.sea);
     const inland = isInlandContext();
 
@@ -1016,7 +1296,7 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
     const renderForDate = (dateKey) => {
       const dayRow = dayData.find((d) => d.date === dateKey);
       const dayAvg = dayRow?.avgScore ?? 0;
-      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland);
+      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland, astroByDay, aligned);
       renderSummary(
         dayData,
         { lat, lon, timezone },
