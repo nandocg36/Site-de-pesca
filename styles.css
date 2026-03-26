@@ -1012,6 +1012,15 @@ body.drawer-open {
   letter-spacing: 0.06em;
 }
 
+.tide-table-official {
+  border: 1px solid rgba(124, 240, 212, 0.22);
+  border-radius: var(--radius-xs);
+}
+
+.tide-model-sub {
+  margin-top: 1.25rem;
+}
+
 .period-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

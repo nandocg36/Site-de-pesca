@@ -88,7 +88,7 @@
       <section class="card chart-card card-elevated card-glass" aria-label="Gráfico do dia">
         <div class="section-eyebrow">Gráfico</div>
         <h2 class="card-title">Índice ao longo do dia</h2>
-        <p class="muted small">Barras = índice; linha tracejada = nível do mar normalizado (só faz sentido na costa).</p>
+        <p class="muted small">Barras = índice; linha tracejada = maré normalizada (curva da tábua EPAGRI quando disponível; senão, modelo).</p>
         <div class="chart-wrap">
           <canvas id="dayChart" width="900" height="320" role="img" aria-label="Gráfico de barras por hora"></canvas>
         </div>
@@ -106,9 +106,9 @@
     </main>
 
     <footer class="footer muted small">
-      Clima e maré (modelo): <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+      Tábua local: <strong>EPAGRI</strong> (Balneário Rincão) · Clima e mar (modelo): <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
       · Sol e lua: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>.
-      <strong>Maré oficial</strong> no Brasil: <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">CHM / Marinha</a>.
+      <strong>Maré oficial</strong> (navegação): <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">CHM / Marinha</a>.
     </footer>
   </div>
 
@@ -127,20 +127,19 @@
       <div class="drawer-panel is-active" id="drawerPanelTide" role="region" aria-labelledby="drawerTideHeading">
         <h3 class="drawer-panel-title" id="drawerTideHeading">Maré e precisão</h3>
         <p class="muted small tide-explain">
-          No Brasil, a <strong>tábua de maré oficial</strong> para navegação e referência legal vem da <strong>Marinha</strong> (Centro de Hidrografia da Marinha — CHM), com <strong>estações maregráficas</strong>, <strong>constantes harmônicas</strong> e <strong>datum</strong> (referência de altura) próprios de cada porto.
-          Este app usa o <strong>Open-Meteo Marine</strong>: é um <strong>modelo numérico global</strong> (simulação do oceano), útil para tendência e planejamento de pesca, mas <strong>não é</strong> a mesma publicação nem o mesmo rigor da tábua do CHM para o seu cais.
+          Este app integra a <strong>tábua de maré de Balneário Rincão</strong> da <strong>EPAGRI</strong> (Siré), a partir do PDF oficial: na página principal aparecem os <strong>extremos (preamar/baixamar)</strong> do dia; o <strong>índice e a linha de maré no gráfico</strong> usam uma curva hora a hora <strong>interpolada entre esses extremos</strong> (não é leitura maregráfica em tempo real).
         </p>
         <p class="muted small tide-explain">
-          Para horários e alturas <strong>oficiais</strong> da região, use a
-          <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">Tábua de maré do CHM</a>
-          ou o <a href="https://www.marinha.mil.br/chm/dados-do-bndo/acesso-dados-e-produtos" target="_blank" rel="noopener">acesso a dados da Marinha</a>.
-          Integrar dados oficiais no app de forma automática exige <strong>fonte autorizada</strong> (API, arquivo ou convênio).
+          No Brasil, a <strong>tábua de maré oficial</strong> para navegação e referência legal vem da <strong>Marinha</strong> (CHM), com datum e estações próprias de cada porto. A EPAGRI publica tábua local para Balneário Rincão; para embarcação e decisões de segurança, confira sempre a <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">tábua do CHM</a> e as normas aplicáveis ao seu caso.
+        </p>
+        <p class="muted small tide-explain">
+          O <strong>Open-Meteo Marine</strong> continua disponível no app como <strong>modelo numérico</strong> (comparativo), quando há dados — útil para ver diferenças em relação à curva da tábua integrada.
         </p>
       </div>
       <div class="drawer-panel hidden" id="drawerPanelMethod" role="region" aria-labelledby="drawerMethodHeading">
         <h3 class="drawer-panel-title" id="drawerMethodHeading">Como funciona o índice</h3>
         <ul class="metric-list">
-          <li><strong>Maré</strong> — nível hora a hora e <strong>preamar / baixamar</strong> estimados pela curva do modelo (Open-Meteo Marine). <em>Não</em> substitui tabela náutica oficial nem estação hidrográfica.</li>
+          <li><strong>Maré</strong> — extremos da <strong>tábua EPAGRI (Balneário Rincão)</strong> no painel do dia; o índice usa curva interpolada entre esses extremos. O <strong>Open-Meteo Marine</strong> aparece como comparativo de modelo.</li>
           <li><strong>Ondas</strong> — altura significativa (API Marine), na costa.</li>
           <li><strong>Vento e rajadas</strong> — a 10 m de altura (API de previsão).</li>
           <li><strong>Chuva, umidade, nuvens</strong> — hora a hora (previsão).</li>

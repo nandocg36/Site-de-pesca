@@ -1,10 +1,11 @@
-const CACHE = 'pesca-v11';
+const CACHE = 'pesca-v12';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
   './manifest.json',
+  './data/epagri-tides-2026.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
 ];

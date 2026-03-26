@@ -7,6 +7,8 @@ const MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const MET_SUN = 'https://api.met.no/weatherapi/sunrise/3.0/sun';
 const MET_MOON = 'https://api.met.no/weatherapi/sunrise/3.0/moon';
+/** Tábua EPAGRI (Balneário Rincão) extraída do PDF oficial — extremos por dia. */
+const EPAGRI_TIDES_URL = './data/epagri-tides-2026.json';
 
 /** Ponto de venda — Plataforma Norte, Balneário Rincão (usuário: -28,82718  -49,21348) */
 const FIXED_LAT = -28.82718;
@@ -153,6 +155,100 @@ function parseAstroDay(sunFeature, moonFeature) {
     moonAltHigh: typeof mp.high_moon?.disc_centre_elevation === 'number' ? mp.high_moon.disc_centre_elevation : null,
     moonAltLow: typeof mp.low_moon?.disc_centre_elevation === 'number' ? mp.low_moon.disc_centre_elevation : null,
   };
+}
+
+function addDaysIso(isoDate, n) {
+  const [Y, M, D] = isoDate.split('-').map(Number);
+  const dt = new Date(Y, M - 1, D + n);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Curva contínua (linear entre extremos) para interpolar nível hora a hora. */
+function buildEpagriCurveForDay(dateKey, byDate) {
+  if (!byDate || typeof byDate !== 'object') return null;
+  const cur = byDate[dateKey];
+  if (!cur || cur.length < 2) return null;
+  const prevKey = addDaysIso(dateKey, -1);
+  const nextKey = addDaysIso(dateKey, 1);
+  const prev = byDate[prevKey];
+  const next = byDate[nextKey];
+  const pts = [];
+  const pushDay = (dk, e) => {
+    const ms = new Date(`${dk}T${e.t}:00`).getTime();
+    if (Number.isFinite(ms)) pts.push({ ms, h: e.h_m });
+  };
+  if (prev?.length) {
+    const sortedP = [...prev].sort((a, b) => a.t.localeCompare(b.t));
+    pushDay(prevKey, sortedP[sortedP.length - 1]);
+  }
+  for (const e of [...cur].sort((a, b) => a.t.localeCompare(b.t))) pushDay(dateKey, e);
+  if (next?.length) {
+    const sortedN = [...next].sort((a, b) => a.t.localeCompare(b.t));
+    pushDay(nextKey, sortedN[0]);
+  }
+  pts.sort((a, b) => a.ms - b.ms);
+  return pts.length >= 2 ? pts : null;
+}
+
+function interpolateAlongPts(pts, tMs) {
+  if (!pts || pts.length < 2) return null;
+  if (tMs <= pts[0].ms) {
+    const a = pts[0];
+    const b = pts[1];
+    const span = b.ms - a.ms || 1;
+    return a.h + ((tMs - a.ms) / span) * (b.h - a.h);
+  }
+  if (tMs >= pts[pts.length - 1].ms) {
+    const a = pts[pts.length - 2];
+    const b = pts[pts.length - 1];
+    const span = b.ms - a.ms || 1;
+    return a.h + ((tMs - a.ms) / span) * (b.h - a.h);
+  }
+  let i = 0;
+  while (i < pts.length - 1 && pts[i + 1].ms < tMs) i += 1;
+  const a = pts[i];
+  const b = pts[i + 1];
+  const span = b.ms - a.ms || 1;
+  return a.h + ((tMs - a.ms) / span) * (b.h - a.h);
+}
+
+/** Nível hora a hora: extremos EPAGRI interpolados; fallback no modelo Open-Meteo. */
+function buildEffectiveSeaLevels(times, modelSea, byDate) {
+  if (!byDate || typeof byDate !== 'object') return modelSea.slice();
+  const cache = new Map();
+  const out = [];
+  for (let i = 0; i < times.length; i++) {
+    const dk = times[i].slice(0, 10);
+    if (!cache.has(dk)) {
+      cache.set(dk, buildEpagriCurveForDay(dk, byDate));
+    }
+    const curve = cache.get(dk);
+    const tMs = new Date(times[i]).getTime();
+    if (curve && Number.isFinite(tMs)) {
+      const h = interpolateAlongPts(curve, tMs);
+      if (h != null && Number.isFinite(h)) {
+        out.push(h);
+        continue;
+      }
+    }
+    out.push(modelSea[i]);
+  }
+  return out;
+}
+
+async function loadEpagriTideTable() {
+  try {
+    const r = await fetch(EPAGRI_TIDES_URL, { cache: 'no-store' });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j && j.extremesByDate && typeof j.extremesByDate === 'object') return j;
+  } catch (_) {
+    /* offline / 404 */
+  }
+  return null;
 }
 
 function alignByTime(marine, forecast) {
@@ -328,7 +424,8 @@ function hourOverlapsSolunar(tMs, windows) {
 }
 
 function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
-  const { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud } = aligned;
+  const { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud } =
+    aligned;
   const n = times.length;
   const tideTurn = new Array(n).fill(0);
   const tideSpeed = new Array(n).fill(0);
@@ -783,7 +880,7 @@ function renderSolunarPanel(astro) {
   `;
 }
 
-function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
+function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland, epagriExtremesByDate) {
   const block = $('tideTableBlock');
   if (!block) return;
   if (isInland) {
@@ -791,29 +888,65 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
     block.innerHTML = '';
     return;
   }
-  const ex = extractTideExtremesFromSeries(dayIdx, times, sea);
-  if (!ex.length) {
+  const official = epagriExtremesByDate?.[dateKey];
+  const officialRows =
+    official && official.length
+      ? [...official]
+          .sort((a, b) => a.t.localeCompare(b.t))
+          .map(
+            (e) =>
+              `<tr><td>${e.hi ? 'Preamar' : 'Baixamar'}</td><td>${e.t.replace(':', 'h')}</td><td>${Number(e.h_m).toFixed(2)} m</td></tr>`
+          )
+          .join('')
+      : '';
+
+  const exModel = extractTideExtremesFromSeries(dayIdx, times, sea);
+  const modelRows = exModel.length
+    ? exModel
+        .map(
+          (e) =>
+            `<tr><td>${e.label}</td><td>${formatHourLabel(e.t)}</td><td>${e.y.toFixed(2)} m</td></tr>`
+        )
+        .join('')
+    : '';
+
+  if (!officialRows && !modelRows) {
     block.classList.add('hidden');
     block.innerHTML = '';
     return;
   }
+
   block.classList.remove('hidden');
-  const rows = ex
-    .map(
-      (e) =>
-        `<tr><td>${e.label}</td><td>${formatHourLabel(e.t)}</td><td>${e.y.toFixed(2)} m</td></tr>`
-    )
-    .join('');
-  block.innerHTML = `
-    <h3 class="subcard-title">Preamar e baixamar (modelo — não oficial)</h3>
-    <p class="muted small">Estes horários são <strong>estimados pela curva do modelo Open-Meteo</strong>, não pela tábua do CHM/Marinha nem por estação maregráfica local. Use só como orientação para pesca; para barco e segurança, consulte a <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">tábua oficial</a>.</p>
+  const officialBlock = officialRows
+    ? `
+    <h3 class="subcard-title">Preamar e baixamar — tábua EPAGRI / Siré</h3>
+    <p class="muted small">Horários e alturas da <strong>tábua de maré de Balneário Rincão</strong> publicada pela <strong>EPAGRI</strong> (integrada a partir do PDF oficial). Para navegação e referência legal no Brasil, a Marinha (CHM) continua sendo a autoridade; confira sempre a documentação do local.</p>
+    <div class="tide-table-wrap">
+      <table class="tide-table tide-table-official">
+        <thead><tr><th></th><th>Hora (local)</th><th>Altura (tábua)</th></tr></thead>
+        <tbody>${officialRows}</tbody>
+      </table>
+    </div>
+  `
+    : '';
+
+  const modelNote = officialRows
+    ? 'Com a tábua EPAGRI carregada, o <strong>índice e o gráfico</strong> usam uma curva baseada nos extremos da tábua; abaixo ficam picos/vales <strong>só do modelo bruto</strong>, para comparação.'
+    : 'Estes horários são <strong>estimados pela curva do modelo Open-Meteo</strong>. Para barco e segurança, use sempre a publicação náutica competente.';
+  const modelBlock = modelRows
+    ? `
+    <h3 class="subcard-title tide-model-sub">${officialRows ? 'Modelo Open-Meteo (comparativo)' : 'Preamar e baixamar (modelo)'}</h3>
+    <p class="muted small">${modelNote}</p>
     <div class="tide-table-wrap">
       <table class="tide-table">
         <thead><tr><th></th><th>Hora (seu fuso)</th><th>Nível (modelo)</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${modelRows}</tbody>
       </table>
     </div>
-  `;
+  `
+    : '';
+
+  block.innerHTML = officialBlock + modelBlock;
 }
 
 function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroByDay, aligned) {
@@ -838,9 +971,13 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
 
   renderIndexWeights(isInland);
   renderSolunarPanel(astroByDay?.get(dateKey));
-  renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland);
+  const epagriMap = state.bundle?.epagriExtremesByDate;
+  renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland, epagriMap);
 
-  intro.textContent = `Para ${weekdayPt(dateKey)}, na Plataforma Norte — dados de previsão (vento, chuva, ondas, maré por modelo, Lua e Sol). O índice de 0 a 100 junta esses sinais; não garante pesca.`;
+  const hasEpagri = epagriMap && epagriMap[dateKey]?.length;
+  intro.textContent = hasEpagri
+    ? `Para ${weekdayPt(dateKey)}, na Plataforma Norte — vento, chuva, ondas e Sol/Lua por previsão; maré com extremos da tábua EPAGRI (Balneário Rincão) e curva hora a hora derivada dela para o índice. Não garante pesca.`
+    : `Para ${weekdayPt(dateKey)}, na Plataforma Norte — dados de previsão (vento, chuva, ondas, maré por modelo, Lua e Sol). O índice de 0 a 100 junta esses sinais; não garante pesca.`;
 
   const periodStats = PERIOD_DEFS.map((pd) => {
     const vals = [];
@@ -1143,14 +1280,19 @@ async function loadFixedLocation() {
   try {
     const { timezone, utc_offset_seconds: utcPre } = await resolveTimezone(lat, lon);
 
-    const [marine, forecast] = await Promise.all([
+    const [marine, forecast, epagriPayload] = await Promise.all([
       loadMarine(lat, lon, timezone),
       loadForecast(lat, lon, timezone),
+      loadEpagriTideTable(),
     ]);
 
     const placeLabel = FIXED_PLACE_LABEL;
     const aligned = alignByTime(marine, forecast);
     if (!aligned.times.length) throw new Error('Sem dados horários para a Plataforma Norte.');
+
+    const epagriByDate = epagriPayload?.extremesByDate ?? null;
+    const modelSea = aligned.sea.slice();
+    aligned.sea = buildEffectiveSeaLevels(aligned.times, modelSea, epagriByDate);
 
     const offsetStr = formatMetOffset(forecast.utc_offset_seconds ?? utcPre ?? 0);
     const dayKeys = aligned.times.map((t) => t.slice(0, 10));
@@ -1162,6 +1304,11 @@ async function loadFixedLocation() {
 
     state.bundle = {
       aligned,
+      modelSea,
+      epagriExtremesByDate: epagriByDate,
+      epagriMeta: epagriPayload
+        ? { source: epagriPayload.source, year: epagriPayload.year, location: epagriPayload.location }
+        : null,
       scores,
       scoreDetails,
       dayData,
