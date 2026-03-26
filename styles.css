@@ -193,6 +193,20 @@ a:hover {
   font-weight: 600;
 }
 
+.fixed-loc-card {
+  margin-top: 1rem;
+}
+
+.fixed-loc-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.fixed-loc-coords {
+  margin: 0;
+  line-height: 1.45;
+}
+
 .section-eyebrow {
   font-size: 0.65rem;
   font-weight: 700;

@@ -1,7 +1,7 @@
 {
-  "name": "Horários de Pesca",
-  "short_name": "Pesca",
-  "description": "Melhores horários para pesca: maré, lua, sol, vento e previsão no mapa.",
+  "name": "Pesca — Plataforma Norte, Rincão",
+  "short_name": "Pesca Rincão",
+  "description": "Previsão de pesca na Plataforma Norte, Balneário Rincão: maré, vento, lua e sol.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

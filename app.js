@@ -1,28 +1,27 @@
 /**
- * PWA Horários de Pesca — Open-Meteo + MET Norway + mapa Leaflet.
+ * PWA Pesca — Plataforma Norte, Balneário Rincão (ponto fixo).
+ * Open-Meteo + MET Norway.
  */
 
-const GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
-const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
 const MET_SUN = 'https://api.met.no/weatherapi/sunrise/3.0/sun';
 const MET_MOON = 'https://api.met.no/weatherapi/sunrise/3.0/moon';
 
+/** Ponto de venda — Plataforma Norte, Balneário Rincão (usuário: -28,82718  -49,21348) */
+const FIXED_LAT = -28.82718;
+const FIXED_LON = -49.21348;
+const FIXED_PLACE_LABEL = 'Plataforma Norte, Balneário Rincão, SC';
+
 const MET_HEADERS = {
-  'User-Agent': 'PescaPWA/1.0 (https://github.com/nandocg36/Site-de-pesca)',
+  'User-Agent': 'PescaPlataformaNorte/1.0 (https://github.com/nandocg36/Site-de-pesca)',
   Accept: 'application/json',
 };
 
 const state = {
-  map: null,
-  marker: null,
-  baseLayers: null,
-  reloadTimer: null,
   chart: null,
-  /** último resultado detalhado por hora (alinhado com `times`) */
   scoreDetails: null,
-  /** @type {{ aligned: object, scores: number[], scoreDetails: object[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string } | null} */
+  /** @type {{ aligned: object, scores: number[], scoreDetails: object[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string, lat: number, lon: number } | null} */
   bundle: null,
 };
 
@@ -38,12 +37,9 @@ function hideError() {
   $('errorBox').classList.add('hidden');
 }
 
-function getWaterContext() {
-  return $('waterContext').value === 'inland' ? 'inland' : 'coastal';
-}
-
+/** Sempre costa / célula mar — app exclusivo da plataforma. */
 function isInlandContext() {
-  return getWaterContext() === 'inland';
+  return false;
 }
 
 async function fetchJson(url, init = {}) {
@@ -52,20 +48,6 @@ async function fetchJson(url, init = {}) {
   const data = await res.json();
   if (data.error) throw new Error(data.reason || 'Erro na API');
   return data;
-}
-
-async function searchPlaces(query) {
-  const q = query.trim();
-  if (q.length < 2) return [];
-  const url = `${GEO_URL}?name=${encodeURIComponent(q)}&count=10&language=pt`;
-  const data = await fetchJson(url);
-  return data.results || [];
-}
-
-function formatPlace(r) {
-  if (r.display_name) return r.display_name;
-  const parts = [r.name, r.admin1, r.country].filter(Boolean);
-  return parts.join(', ');
 }
 
 function formatMetOffset(seconds) {
@@ -89,37 +71,6 @@ async function resolveTimezone(lat, lon) {
   return { timezone: data.timezone || 'GMT', utc_offset_seconds: data.utc_offset_seconds ?? 0 };
 }
 
-async function reverseGeocode(lat, lon) {
-  const params = new URLSearchParams({
-    lat: String(lat),
-    lon: String(lon),
-    format: 'json',
-    'accept-language': 'pt',
-  });
-  const res = await fetch(`${NOMINATIM_REVERSE}?${params}`, {
-    cache: 'no-store',
-    headers: { 'Accept-Language': 'pt', 'User-Agent': 'PescaPWA/1.0 (https://github.com/nandocg36/Site-de-pesca)' },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  const a = data.address || {};
-  const name = a.village || a.town || a.city || a.municipality || a.county || a.state || 'Local';
-  const admin = a.state || a.region;
-  const country = a.country;
-  return {
-    name,
-    admin1: admin,
-    country,
-    latitude: lat,
-    longitude: lon,
-    display_name: data.display_name,
-  };
-}
-
-function marineCellSelection() {
-  return isInlandContext() ? 'nearest' : 'sea';
-}
-
 async function loadMarine(lat, lon, timezone) {
   const params = new URLSearchParams({
     latitude: String(lat),
@@ -127,7 +78,7 @@ async function loadMarine(lat, lon, timezone) {
     hourly: 'sea_level_height_msl,sea_surface_temperature,wave_height',
     forecast_days: '8',
     timezone,
-    cell_selection: marineCellSelection(),
+    cell_selection: 'sea',
   });
   return fetchJson(`${MARINE_URL}?${params}`);
 }
@@ -296,7 +247,6 @@ function moonEventBoostFromTimes(moonrise, moonset) {
   };
 }
 
-/** Vento médio (km/h): quanto menor, mais confortável para pesca em terra/pequena embarcação. */
 function windComfortKmh(wind, gust) {
   const w = wind != null && Number.isFinite(wind) ? wind : 0;
   const g = gust != null && Number.isFinite(gust) ? gust : w;
@@ -306,7 +256,6 @@ function windComfortKmh(wind, gust) {
   return 1 - ((x - 10) / 38) * 0.82;
 }
 
-/** Chuva na hora anterior (mm) + probabilidade (%): menos é melhor. */
 function rainComfort(mm, prob) {
   const p = prob != null && Number.isFinite(prob) ? prob : 0;
   const m = mm != null && Number.isFinite(mm) ? mm : 0;
@@ -315,7 +264,6 @@ function rainComfort(mm, prob) {
   return Math.max(0.15, Math.min(1, s));
 }
 
-/** Altura de onda (m): costa; interior devolve neutro. */
 function waveComfortMeters(waveHeight, isInland) {
   if (isInland) return 0.55;
   const h = waveHeight;
@@ -332,9 +280,6 @@ function compassPt(deg) {
   return dirs[(i + 8) % 8];
 }
 
-/**
- * Preamar / baixamar a partir da série horária do modelo (picos e vales locais).
- */
 function extractTideExtremesFromSeries(dayIndices, times, seaLevels) {
   const pts = [];
   for (const gi of dayIndices) {
@@ -355,11 +300,6 @@ function extractTideExtremesFromSeries(dayIndices, times, seaLevels) {
   return out;
 }
 
-/**
- * Janelas estilo solunar major/minor a partir de eventos MET (lua no céu, subida/pôr).
- * Major = ±1h em torno de high_moon e (moonrise|moonset) quando existirem.
- * Minor = ±30 min em torno de low_moon.
- */
 function buildSolunarWindows(astro) {
   if (!astro) return { major: [], minor: [] };
   const major = [];
@@ -387,10 +327,6 @@ function hourOverlapsSolunar(tMs, windows) {
   return null;
 }
 
-/**
- * Calcula índice horário e componentes normalizados (0–1) para explicar cada hora.
- * @returns {{ scores: number[], details: object[] }}
- */
 function computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, isInland) {
   const { times, sea, sst, wave, temp, press, isDay, wind, gust, windDir, rain, rainProb, rh, cloud } = aligned;
   const n = times.length;
@@ -665,7 +601,7 @@ function formatMetricHour(detail, isInland) {
     parts.push(`Umid. ${Math.round(detail.rhPct)} %`);
   }
   if (detail.cloudPct != null && Number.isFinite(detail.cloudPct)) {
-    parts.push(`Nuvens ${Math.round(detail.cloudPct)}%`);
+    parts.push(`Nuvens ${Math.round(detail.cloudPct)} %`);
   }
   return parts.length ? parts.join(' · ') : '—';
 }
@@ -710,7 +646,7 @@ function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
       </div>
       <div class="hourly-metrics muted small">${metricsLine}</div>
       <div class="hourly-why">
-        <strong>Porquê:</strong>
+        <strong>Por quê:</strong>
         <ul>${expl.map((x) => `<li>${x}</li>`).join('')}</ul>
       </div>
     `;
@@ -718,7 +654,6 @@ function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
   }
 }
 
-/** Períodos do dia em hora local (string API). */
 const PERIOD_DEFS = [
   { id: 'madrugada', label: 'Madrugada', match: (h) => h >= 0 && h <= 5 },
   { id: 'manha', label: 'Manhã', match: (h) => h >= 6 && h <= 11 },
@@ -760,6 +695,60 @@ function findContiguousWindows(dayIndices, scores, predicate) {
   }
   if (s !== null) wins.push([s, dayIndices.length - 1]);
   return wins.map(([a, b]) => ({ a, b, len: b - a + 1, avg: mean(dayIndices.slice(a, b + 1).map((gi) => scores[gi])) }));
+}
+
+function getIndexWeightRows(isInland) {
+  if (isInland) {
+    return [
+      { label: 'Maré — viragem (modelo)', pct: 8 },
+      { label: 'Maré — ritmo do fluxo', pct: 5 },
+      { label: 'Lua, solunar e fase', pct: 21 },
+      { label: 'Sol — nascer / pôr / crepúsculo', pct: 16 },
+      { label: 'Pressão atmosférica', pct: 11 },
+      { label: 'Estabilidade da temperatura do ar', pct: 9 },
+      { label: 'Vento e rajadas', pct: 10 },
+      { label: 'Chuva e probabilidade', pct: 9 },
+      { label: 'Ondas (peso reduzido)', pct: 4 },
+      { label: 'Temperatura superficial do mar (SST)', pct: 7 },
+    ];
+  }
+  return [
+    { label: 'Maré — viragem (modelo)', pct: 19 },
+    { label: 'Maré — ritmo do fluxo', pct: 8 },
+    { label: 'Lua, solunar e fase', pct: 16 },
+    { label: 'Sol — nascer / pôr / crepúsculo', pct: 12 },
+    { label: 'Pressão atmosférica', pct: 9 },
+    { label: 'Estabilidade da temperatura do ar', pct: 7 },
+    { label: 'Vento e rajadas', pct: 8 },
+    { label: 'Chuva e probabilidade', pct: 7 },
+    { label: 'Altura de onda', pct: 6 },
+    { label: 'Temperatura superficial do mar (SST)', pct: 8 },
+  ];
+}
+
+function renderIndexWeights(isInland) {
+  const el = $('indexWeights');
+  if (!el) return;
+  const rows = getIndexWeightRows(isInland);
+  const maxPct = Math.max(...rows.map((r) => r.pct), 1);
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <h3 class="index-weights-title">Peso de cada fator no índice</h3>
+    ${rows
+      .map(
+        (r) => `
+      <div class="weight-row">
+        <span class="weight-label">${r.label}</span>
+        <span class="weight-pct">${r.pct}%</span>
+        <div class="weight-track" aria-hidden="true">
+          <div class="weight-fill" style="width:${(r.pct / maxPct) * 100}%"></div>
+        </div>
+      </div>
+    `
+      )
+      .join('')}
+    <p class="index-weights-foot">As porcentagens mostram o <strong>peso relativo</strong> de cada parte da fórmula (costa x interior). O índice final fica entre 0 e 100.</p>
+  `;
 }
 
 function renderSolunarPanel(astro) {
@@ -826,60 +815,6 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
   `;
 }
 
-function getIndexWeightRows(isInland) {
-  if (isInland) {
-    return [
-      { label: 'Maré — viragem (modelo)', pct: 8 },
-      { label: 'Maré — ritmo do fluxo', pct: 5 },
-      { label: 'Lua, solunar & fase', pct: 21 },
-      { label: 'Sol — nascer / pôr / crepúsculo', pct: 16 },
-      { label: 'Pressão atmosférica', pct: 11 },
-      { label: 'Estabilidade da temperatura do ar', pct: 9 },
-      { label: 'Vento & rajadas', pct: 10 },
-      { label: 'Chuva & probabilidade', pct: 9 },
-      { label: 'Ondas (peso reduzido)', pct: 4 },
-      { label: 'Temperatura superficial do mar (SST)', pct: 7 },
-    ];
-  }
-  return [
-    { label: 'Maré — viragem (modelo)', pct: 19 },
-    { label: 'Maré — ritmo do fluxo', pct: 8 },
-    { label: 'Lua, solunar & fase', pct: 16 },
-    { label: 'Sol — nascer / pôr / crepúsculo', pct: 12 },
-    { label: 'Pressão atmosférica', pct: 9 },
-    { label: 'Estabilidade da temperatura do ar', pct: 7 },
-    { label: 'Vento & rajadas', pct: 8 },
-    { label: 'Chuva & probabilidade', pct: 7 },
-    { label: 'Altura de onda', pct: 6 },
-    { label: 'Temperatura superficial do mar (SST)', pct: 8 },
-  ];
-}
-
-function renderIndexWeights(isInland) {
-  const el = $('indexWeights');
-  if (!el) return;
-  const rows = getIndexWeightRows(isInland);
-  const maxPct = Math.max(...rows.map((r) => r.pct), 1);
-  el.classList.remove('hidden');
-  el.innerHTML = `
-    <h3 class="index-weights-title">Peso de cada fator no índice</h3>
-    ${rows
-      .map(
-        (r) => `
-      <div class="weight-row">
-        <span class="weight-label">${r.label}</span>
-        <span class="weight-pct">${r.pct}%</span>
-        <div class="weight-track" aria-hidden="true">
-          <div class="weight-fill" style="width:${(r.pct / maxPct) * 100}%"></div>
-        </div>
-      </div>
-    `
-      )
-      .join('')}
-    <p class="index-weights-foot">As porcentagens mostram o <strong>peso relativo</strong> de cada parte da fórmula (costa x interior). O índice final fica entre 0 e 100.</p>
-  `;
-}
-
 function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroByDay, aligned) {
   const dayIdx = sliceDayIndices(times, dateKey);
   const intro = $('recIntro');
@@ -902,7 +837,7 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
   renderSolunarPanel(astroByDay?.get(dateKey));
   renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland);
 
-  intro.textContent = `Para ${weekdayPt(dateKey)}, com dados de previsão (vento, chuva, ondas, maré por modelo, Lua e Sol). O índice de 0 a 100 junta esses sinais — não garante pesca.`;
+  intro.textContent = `Para ${weekdayPt(dateKey)}, na Plataforma Norte — dados de previsão (vento, chuva, ondas, maré por modelo, Lua e Sol). O índice de 0 a 100 junta esses sinais; não garante pesca.`;
 
   const periodStats = PERIOD_DEFS.map((pd) => {
     const vals = [];
@@ -1023,7 +958,7 @@ function renderSummary(dayData, place, dateKey, astroByDay, marineMeta) {
   const cells = [
     ['Média do dia', `${day.avgScore}/100`],
     ['Melhor hora (pico)', `${day.maxScore}/100`],
-    ['Ponto no mapa', `${place.lat.toFixed(5)}°, ${place.lon.toFixed(5)}°`],
+    ['Ponto fixo', `${place.lat.toFixed(5)}°, ${place.lon.toFixed(5)}°`],
     ['Célula do modelo (mar)', `${gridLat}°, ${gridLon}°`],
     ['Fuso horário', place.timezone || '—'],
   ];
@@ -1195,155 +1130,32 @@ function fillDaySelect(dayData, selected) {
   if ([...sel.options].some((o) => o.value === selected)) sel.value = selected;
 }
 
-function syncInputsFromLatLng(lat, lon) {
-  $('inputLat').value = Number(lat).toFixed(5);
-  $('inputLon').value = Number(lon).toFixed(5);
-}
-
-function getLatLonFromInputs() {
-  const lat = parseFloat($('inputLat').value);
-  const lon = parseFloat($('inputLon').value);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
-  return { lat, lon };
-}
-
-function fishingPinIcon() {
-  return L.divIcon({
-    className: 'fishing-pin-marker',
-    html: '<div class="pin-ring"></div><div class="pin-core"></div>',
-    iconSize: [44, 44],
-    iconAnchor: [22, 22],
-    popupAnchor: [0, -24],
-  });
-}
-
-function updateMarkerPopup(lat, lon) {
-  if (!state.marker) return;
-  state.marker.setPopupContent(
-    `<p class="map-popup-coords"><strong>Ponto de pesca</strong><br/>${lat.toFixed(5)}°, ${lon.toFixed(5)}°</p>`
-  );
-}
-
-function initMap() {
-  if (state.map || typeof L === 'undefined') return;
-  const mapEl = $('map');
-  if (!mapEl) return;
-
-  state.map = L.map('map', { zoomControl: true }).setView([40.2, -8.4], 6);
-
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-  });
-
-  const satellite = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    {
-      attribution: 'Tiles &copy; Esri',
-      maxZoom: 19,
-    }
-  );
-
-  satellite.addTo(state.map);
-  state.baseLayers = { Satélite: satellite, Mapa: osm };
-  L.control.layers(state.baseLayers, null, { position: 'topright' }).addTo(state.map);
-
-  state.marker = L.marker([40.2, -8.4], {
-    draggable: true,
-    icon: fishingPinIcon(),
-    riseOnHover: true,
-    title: 'Ponto de pesca — arrastar ou clicar no mapa para mover',
-  }).addTo(state.map);
-  state.marker.bindPopup('');
-  updateMarkerPopup(40.2, -8.4);
-
-  state.marker.on('dragstart', () => {
-    state.marker.closePopup();
-  });
-
-  state.marker.on('dragend', () => {
-    const ll = state.marker.getLatLng();
-    syncInputsFromLatLng(ll.lat, ll.lng);
-    updateMarkerPopup(ll.lat, ll.lng);
-    state.marker.openPopup();
-    scheduleReloadFromMap();
-  });
-
-  state.map.on('click', (e) => {
-    state.marker.setLatLng(e.latlng);
-    syncInputsFromLatLng(e.latlng.lat, e.latlng.lng);
-    updateMarkerPopup(e.latlng.lat, e.latlng.lng);
-    state.marker.openPopup();
-    scheduleReloadFromMap();
-  });
-
-  window.addEventListener('resize', () => {
-    state.map?.invalidateSize();
-  });
-  requestAnimationFrame(() => {
-    state.map?.invalidateSize();
-  });
-  setTimeout(() => state.map?.invalidateSize(), 400);
-}
-
-function scheduleReloadFromMap() {
-  clearTimeout(state.reloadTimer);
-  state.reloadTimer = setTimeout(() => {
-    const ll = state.marker.getLatLng();
-    loadAtCoordinates(ll.lat, ll.lng, { updateLabel: true });
-  }, 550);
-}
-
-/**
- * @param {object} opts
- * @param {boolean} [opts.updateLabel] — se true (omissão), tenta reverse geocode quando não há label
- * @param {string} [opts.label] — texto fixo do local
- * @param {string} [opts.timezone] — se já conhecido (ex.: resultado da pesquisa)
- * @param {string} [opts.locationHint] — texto extra sob o label (mapa / pesquisa)
- */
-async function loadAtCoordinates(lat, lon, opts = {}) {
+async function loadFixedLocation() {
+  const lat = FIXED_LAT;
+  const lon = FIXED_LON;
   hideError();
   $('loading').classList.remove('hidden');
   $('mainContent').classList.add('hidden');
 
-  const updateLabel = opts.updateLabel !== false;
-
   try {
-    let timezone = opts.timezone;
-    let utcPre = 0;
-    if (!timezone) {
-      const z = await resolveTimezone(lat, lon);
-      timezone = z.timezone;
-      utcPre = z.utc_offset_seconds;
-    }
+    const { timezone, utc_offset_seconds: utcPre } = await resolveTimezone(lat, lon);
 
     const [marine, forecast] = await Promise.all([
       loadMarine(lat, lon, timezone),
       loadForecast(lat, lon, timezone),
     ]);
 
-    let placeLabel = opts.label;
-    if (!placeLabel && updateLabel) {
-      try {
-        const rev = await reverseGeocode(lat, lon);
-        if (rev) placeLabel = formatPlace(rev);
-      } catch {
-        /* ignore */
-      }
-    }
-    if (!placeLabel) placeLabel = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
-
+    const placeLabel = FIXED_PLACE_LABEL;
     const aligned = alignByTime(marine, forecast);
-    if (!aligned.times.length) throw new Error('Sem dados horários para este ponto no mapa.');
+    if (!aligned.times.length) throw new Error('Sem dados horários para a Plataforma Norte.');
 
     const offsetStr = formatMetOffset(forecast.utc_offset_seconds ?? utcPre ?? 0);
     const dayKeys = aligned.times.map((t) => t.slice(0, 10));
     const astroByDay = await loadAstroSeries(lat, lon, dayKeys, offsetStr);
 
+    const inland = isInlandContext();
     const { scores, details: scoreDetails } = computeHourlyScoresDetailed(lat, lon, aligned, astroByDay, inland);
     const dayData = groupByDay(aligned.times, scores, aligned.sea);
-    const inland = isInlandContext();
 
     state.bundle = {
       aligned,
@@ -1384,151 +1196,12 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
     renderForDate($('daySelect').value);
     renderForecastList(dayData);
 
-    const hint =
-      opts.locationHint ||
-      '<span class="muted">Ajuste no mapa ou nas coordenadas e toque em <strong>Aplicar coordenadas</strong> para recalcular.</span>';
-    $('locationLabel').innerHTML = `<strong>Ponto selecionado:</strong> ${placeLabel}<br/>${hint}`;
     $('mainContent').classList.remove('hidden');
-    requestAnimationFrame(() => state.map?.invalidateSize());
   } catch (e) {
     showError(e.message || 'Erro ao carregar os dados.');
   } finally {
     $('loading').classList.add('hidden');
   }
-}
-
-function selectPlaceFromSearch(place) {
-  const lat = place.latitude;
-  const lon = place.longitude;
-  if (state.map && state.marker) {
-    state.map.setView([lat, lon], 12);
-    state.marker.setLatLng([lat, lon]);
-    updateMarkerPopup(lat, lon);
-    state.marker.openPopup();
-  }
-  syncInputsFromLatLng(lat, lon);
-  return loadAtCoordinates(lat, lon, {
-    updateLabel: false,
-    label: formatPlace(place),
-    timezone: place.timezone,
-    locationHint:
-      '<span class="muted">Arraste o marcador até o cais, o barco ou a margem exata onde você vai pescar.</span>',
-  });
-}
-
-function setupSearch() {
-  const input = $('placeQuery');
-  const sug = $('suggestions');
-  let timer;
-
-  const hideSug = () => {
-    sug.classList.add('hidden');
-    sug.innerHTML = '';
-  };
-
-  input.addEventListener('input', () => {
-    clearTimeout(timer);
-    const v = input.value;
-    timer = setTimeout(async () => {
-      try {
-        const results = await searchPlaces(v);
-        sug.innerHTML = '';
-        if (!results.length) {
-          hideSug();
-          return;
-        }
-        for (const r of results) {
-          const li = document.createElement('li');
-          li.tabIndex = 0;
-          li.textContent = formatPlace(r);
-          li.addEventListener('click', () => {
-            input.value = formatPlace(r);
-            hideSug();
-            initMap();
-            selectPlaceFromSearch(r);
-          });
-          li.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter') li.click();
-          });
-          sug.appendChild(li);
-        }
-        sug.classList.remove('hidden');
-      } catch {
-        hideSug();
-      }
-    }, 280);
-  });
-
-  $('btnSearch').addEventListener('click', async () => {
-    hideSug();
-    try {
-      const results = await searchPlaces(input.value);
-      if (!results.length) {
-        showError('Nenhum lugar encontrado. Tente outro nome.');
-        return;
-      }
-      initMap();
-      selectPlaceFromSearch(results[0]);
-    } catch (e) {
-      showError(e.message || 'Erro na busca.');
-    }
-  });
-
-  $('btnGeo').addEventListener('click', () => {
-    if (!navigator.geolocation) {
-      showError('Seu aparelho não oferece geolocalização.');
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-        hideError();
-        initMap();
-        state.map.setView([lat, lon], 13);
-        state.marker.setLatLng([lat, lon]);
-        syncInputsFromLatLng(lat, lon);
-        updateMarkerPopup(lat, lon);
-        state.marker.openPopup();
-        await loadAtCoordinates(lat, lon, { updateLabel: true });
-      },
-      () => showError('Não foi possível obter sua localização. Verifique as permissões do navegador.'),
-      { enableHighAccuracy: true, timeout: 15000 }
-    );
-  });
-
-  $('btnApplyCoords').addEventListener('click', () => {
-    const ll = getLatLonFromInputs();
-    if (!ll) {
-      showError('Latitude ou longitude inválida. Use graus decimais (ex.: -23.03 e -43.12).');
-      return;
-    }
-    hideError();
-    initMap();
-    state.map.setView([ll.lat, ll.lon], 13);
-    state.marker.setLatLng([ll.lat, ll.lon]);
-    updateMarkerPopup(ll.lat, ll.lon);
-    state.marker.openPopup();
-    loadAtCoordinates(ll.lat, ll.lon, { updateLabel: true });
-  });
-
-  $('waterContext').addEventListener('change', () => {
-    if (!state.marker) return;
-    const ll = state.marker.getLatLng();
-    const b = state.bundle;
-    loadAtCoordinates(ll.lat, ll.lng, {
-      updateLabel: false,
-      label: b?.placeLabel,
-      timezone: b?.tz,
-      locationHint: b?.placeLabel
-        ? '<span class="muted">Tipo de água alterado — dados recalculados para o mesmo ponto.</span>'
-        : undefined,
-    });
-  });
-
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.search')) hideSug();
-  });
 }
 
 $('metricsToggle').addEventListener('click', () => {
@@ -1543,5 +1216,4 @@ $('hourlySort').addEventListener('change', () => {
   renderHourlyList($('daySelect').value, b.aligned.times, b.scores, b.scoreDetails, b.isInland);
 });
 
-setupSearch();
-initMap();
+loadFixedLocation();

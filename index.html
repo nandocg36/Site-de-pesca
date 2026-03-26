@@ -4,16 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
   <meta name="theme-color" content="#0a0f1a" />
-  <meta name="description" content="Melhores horários para pesca no Brasil: mapa, maré, lua, sol, vento e previsão — ponto exato no mapa." />
-  <title>Horários de Pesca</title>
+  <meta name="description" content="Previsão de pesca na Plataforma Norte, Balneário Rincão: maré, vento, lua, sol e índice hora a hora." />
+  <title>Pesca — Plataforma Norte, Balneário Rincão</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
   <div class="noise" aria-hidden="true"></div>
@@ -21,8 +19,8 @@
     <header class="hero">
       <div class="brand-bar">
         <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-name">Horários de Pesca</span>
-        <span class="brand-tag">Previsão meteorológica e marítima</span>
+        <span class="brand-name">Plataforma Norte</span>
+        <span class="brand-tag">Balneário Rincão · SC</span>
       </div>
       <div class="hero-inner">
         <p class="hero-kicker">Previsão de pesca</p>
@@ -30,54 +28,21 @@
           <span class="hero-welcome-place">Plataforma Norte, Balneário Rincão</span>
           <span class="hero-welcome-msg">Seja bem-vindo e boa pescaria</span>
         </h1>
-        <p class="hero-lead">Marque o <strong>ponto exato</strong> no mapa e acompanhe maré, vento, lua e sol — hora a hora, com dados reais.</p>
+        <p class="hero-lead">Previsão focada <strong>só neste ponto</strong>: maré, vento, lua e sol — hora a hora, com dados do modelo costeiro.</p>
       </div>
     </header>
 
-    <section class="search card card-elevated card-glass" aria-label="Localização">
-      <div class="section-eyebrow">Localização</div>
-      <h2 class="card-title">Onde você vai pescar?</h2>
-      <div class="search-row">
-        <input type="search" id="placeQuery" placeholder="Digite cidade, rio ou cais" autocomplete="off" enterkeyhint="search" />
-        <button type="button" id="btnSearch" class="btn primary">Buscar</button>
-        <button type="button" id="btnGeo" class="btn" title="Usar localização atual">GPS</button>
-      </div>
-      <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
-
-      <div class="water-mode-row">
-        <label class="field-label" for="waterContext">Tipo de água (ajusta o modelo)</label>
-        <select id="waterContext" class="day-select water-select">
-          <option value="coastal">Oceano / costa / estuário</option>
-          <option value="inland">Lago / rio / água doce (interior)</option>
-        </select>
-        <p class="muted small water-hint">Na costa usamos células <em>no mar</em> para maré e temperatura da água. No interior a maré do modelo é menos confiável — o app deixa isso claro no texto.</p>
-      </div>
-
-      <p class="map-banner" id="mapBanner"><span class="map-banner-icon" aria-hidden="true">📍</span> <strong>Mapa interativo</strong> — toque em qualquer lugar para escolher as coordenadas exatas do ponto de pesca.</p>
-      <div id="map" class="map-wrap" role="application" aria-label="Mapa: toque para definir o ponto de pesca"></div>
-      <p class="map-help muted small">Camadas <strong>Mapa</strong> ou <strong>Satélite</strong> (canto superior direito). Dê zoom com os botões +/− ou com os dedos.</p>
-
-      <div class="coord-toolbar">
-        <div class="coord-inputs">
-          <label class="coord-field">
-            <span class="coord-label">Latitude</span>
-            <input type="number" id="inputLat" step="0.00001" inputmode="decimal" />
-          </label>
-          <label class="coord-field">
-            <span class="coord-label">Longitude</span>
-            <input type="number" id="inputLon" step="0.00001" inputmode="decimal" />
-          </label>
-        </div>
-        <button type="button" id="btnApplyCoords" class="btn primary btn-block-touch">Aplicar coordenadas</button>
-      </div>
-      <div id="locationLabel" class="location-label muted"></div>
+    <section class="card card-elevated card-glass fixed-loc-card" aria-label="Ponto de referência">
+      <div class="section-eyebrow">Ponto fixo</div>
+      <p class="fixed-loc-title"><strong>Plataforma Norte</strong> · Balneário Rincão, SC</p>
+      <p class="muted small fixed-loc-coords">Coordenadas: −28,82718° · −49,21348° · modelo <em>mar</em> (costa)</p>
     </section>
 
     <section id="errorBox" class="error hidden" role="alert"></section>
 
-    <section id="loading" class="loading hidden" aria-live="polite">
+    <section id="loading" class="loading" aria-live="polite">
       <div class="spinner"></div>
-      <span>Carregando dados do ponto escolhido…</span>
+      <span>Carregando previsão para a Plataforma Norte…</span>
     </section>
 
     <main id="mainContent" class="hidden main-stack">
@@ -157,8 +122,7 @@
     </main>
 
     <footer class="footer muted small">
-      Mapas © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-      · Previsão e dados marinhos: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+      Previsão e dados marinhos: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
       · Sol, lua e janelas solunar: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>.
       Maré e ondas vêm de <strong>modelo numérico</strong>, não de tabela oficial de navegação.
     </footer>
