@@ -48,7 +48,7 @@ function isInlandContext() {
 
 async function fetchJson(url, init = {}) {
   const res = await fetch(url, { ...init, cache: 'no-store' });
-  if (!res.ok) throw new Error(`Pedido falhou (${res.status})`);
+  if (!res.ok) throw new Error(`A solicitação falhou (${res.status})`);
   const data = await res.json();
   if (data.error) throw new Error(data.reason || 'Erro na API');
   return data;
@@ -333,7 +333,7 @@ function compassPt(deg) {
 }
 
 /**
- * Preia-mar / baixa-mar a partir da série horária do modelo (picos e vales locais).
+ * Preamar / baixamar a partir da série horária do modelo (picos e vales locais).
  */
 function extractTideExtremesFromSeries(dayIndices, times, seaLevels) {
   const pts = [];
@@ -348,8 +348,8 @@ function extractTideExtremesFromSeries(dayIndices, times, seaLevels) {
     const a = pts[k - 1].y;
     const b = pts[k].y;
     const c = pts[k + 1].y;
-    if (b > a && b >= c) out.push({ ...pts[k], type: 'high', label: 'Preia-mar' });
-    if (b < a && b <= c) out.push({ ...pts[k], type: 'low', label: 'Baixa-mar' });
+    if (b > a && b >= c) out.push({ ...pts[k], type: 'high', label: 'Preamar' });
+    if (b < a && b <= c) out.push({ ...pts[k], type: 'low', label: 'Baixamar' });
   }
   out.sort((u, v) => u.ms - v.ms);
   return out;
@@ -575,27 +575,27 @@ function buildHourExplanations(detail, isInland) {
   const lines = [];
 
   if (detail.solMajorLabel) {
-    lines.push(`<strong>Solunar major</strong> (${detail.solMajorLabel}) — janela astronómica da lua no estilo tábua clássica.`);
+    lines.push(`<strong>Solunar major</strong> (${detail.solMajorLabel}) — janela astronômica da Lua, no estilo de tabelas clássicas de pesca.`);
   } else if (detail.solMinorLabel) {
-    lines.push(`<strong>Solunar minor</strong> (${detail.solMinorLabel}) — influência mais suave.`);
+    lines.push(`<strong>Solunar minor</strong> (${detail.solMinorLabel}) — influência mais leve.`);
   }
 
   if (!isInland) {
     if (detail.turnN >= hi) {
-      lines.push('Maré: <strong>viragem ou mudança de fluxo</strong> no modelo de nível do mar.');
+      lines.push('Maré: <strong>virada ou mudança forte de fluxo</strong> no modelo de nível do mar.');
     } else if (detail.turnN <= lo) {
-      lines.push('Maré: <strong>pouca viragem</strong> nesta hora no modelo.');
+      lines.push('Maré: <strong>pouca virada</strong> nesta hora no modelo.');
     } else {
       lines.push('Maré: influência <strong>média</strong> no modelo.');
     }
   } else {
-    lines.push('Interior: maré no modelo <strong>pouco fiável</strong> — peso maior em clima e lua/sol.');
+    lines.push('Interior: a maré do modelo é <strong>pouco confiável</strong> aqui — o índice pesa mais clima, Lua e Sol.');
   }
 
   if (detail.moonComb >= hi) {
-    lines.push('Lua/solunar: <strong>conjunto favorável</strong> nesta hora.');
+    lines.push('Lua / solunar: <strong>conjunto favorável</strong> nesta hora.');
   } else if (detail.moonComb <= lo) {
-    lines.push('Lua/solunar: <strong>menos favorável</strong> para os critérios usados.');
+    lines.push('Lua / solunar: <strong>menos favorável</strong> pelos critérios usados.');
   }
 
   if (detail.sunB >= hi) {
@@ -605,29 +605,29 @@ function buildHourExplanations(detail, isInland) {
   }
 
   if (detail.windScore >= 0.72) {
-    lines.push('Vento: <strong>moderado</strong> — boas condições para arremesso / mar calmo.');
+    lines.push('Vento: <strong>moderado</strong> — boas condições para arremesso ou mar mais calmo.');
   } else if (detail.windScore <= 0.42) {
-    lines.push('Vento: <strong>forte ou rajadas altas</strong> — pode atrapalhar pesca exposta.');
+    lines.push('Vento: <strong>forte ou com rajadas altas</strong> — pode atrapalhar na beira ou no barco.');
   }
 
   if (detail.rainScore >= 0.72) {
     lines.push('Chuva: <strong>pouca ou nenhuma</strong> prevista nesta hora.');
   } else if (detail.rainScore <= 0.45) {
-    lines.push('Chuva: <strong>chuva ou alta probabilidade</strong> — conforto e visibilidade piores.');
+    lines.push('Chuva: <strong>volume alto ou probabilidade alta</strong> — piora o conforto e a visibilidade.');
   }
 
   if (!isInland && detail.waveM != null && Number.isFinite(detail.waveM)) {
     if (detail.waveScore >= 0.75) {
       lines.push(`Ondas: <strong>baixas</strong> (~${detail.waveM.toFixed(1)} m) no modelo.`);
     } else if (detail.waveScore <= 0.4) {
-      lines.push(`Ondas: <strong>elevadas</strong> (~${detail.waveM.toFixed(1)} m) — mar mais mexido.`);
+      lines.push(`Ondas: <strong>altas</strong> (~${detail.waveM.toFixed(1)} m) — mar mais agitado.`);
     }
   }
 
   if (detail.pressScore >= 0.78) {
-    lines.push('Pressão: <strong>estável</strong> (pouca queda na última hora).');
+    lines.push('Pressão: <strong>mais estável</strong> (pouca queda na última hora).');
   } else if (detail.pressScore <= 0.48) {
-    lines.push('Pressão: <strong>queda rápida</strong> — tempo pode instabilizar.');
+    lines.push('Pressão: <strong>queda rápida</strong> — o tempo pode ficar instável.');
   }
 
   if (detail.tempScore >= 0.72) {
@@ -637,7 +637,7 @@ function buildHourExplanations(detail, isInland) {
   }
 
   if (detail.sstPresent) {
-    lines.push('Temperatura da superfície do mar disponível no modelo para esta grelha.');
+    lines.push('Temperatura da superfície do mar disponível no modelo para esta célula.');
   }
 
   return lines;
@@ -646,7 +646,7 @@ function buildHourExplanations(detail, isInland) {
 function formatMetricHour(detail, isInland) {
   const parts = [];
   if (detail.windKmh != null && Number.isFinite(detail.windKmh)) {
-    const g = detail.gustKmh != null && Number.isFinite(detail.gustKmh) ? ` · raj. ${Math.round(detail.gustKmh)} km/h` : '';
+    const g = detail.gustKmh != null && Number.isFinite(detail.gustKmh) ? ` · rajadas ${Math.round(detail.gustKmh)} km/h` : '';
     const dir = compassPt(detail.windDir);
     const dtxt = dir ? ` ${dir}` : '';
     parts.push(`Vento ${Math.round(detail.windKmh)} km/h${g}${dtxt}`);
@@ -654,7 +654,7 @@ function formatMetricHour(detail, isInland) {
   if (detail.rainMm != null && Number.isFinite(detail.rainMm)) {
     const p =
       detail.rainProbPct != null && Number.isFinite(detail.rainProbPct)
-        ? ` · prob. ${Math.round(detail.rainProbPct)}%`
+        ? ` · prob. ${Math.round(detail.rainProbPct)} %`
         : '';
     parts.push(`Chuva ${detail.rainMm.toFixed(1)} mm${p}`);
   }
@@ -662,7 +662,7 @@ function formatMetricHour(detail, isInland) {
     parts.push(`Onda ~${detail.waveM.toFixed(2)} m`);
   }
   if (detail.rhPct != null && Number.isFinite(detail.rhPct)) {
-    parts.push(`Hum. ${Math.round(detail.rhPct)}%`);
+    parts.push(`Umid. ${Math.round(detail.rhPct)} %`);
   }
   if (detail.cloudPct != null && Number.isFinite(detail.cloudPct)) {
     parts.push(`Nuvens ${Math.round(detail.cloudPct)}%`);
@@ -786,8 +786,8 @@ function renderSolunarPanel(astro) {
   }
   block.classList.remove('hidden');
   block.innerHTML = `
-    <h3 class="subcard-title">Janelas solunar (major / minor)</h3>
-    <p class="muted small">Calculadas a partir dos horários <strong>reais</strong> da lua (MET Norway), no estilo de muitas tábuas de pesca. Não são garantia de capturas.</p>
+    <h3 class="subcard-title">Janelas solunar (major e minor)</h3>
+    <p class="muted small">Com base nos horários <strong>reais</strong> da Lua (MET Norway), no estilo de várias tabelas de pesca. Não garantem peixe na linha.</p>
     ${majorLines ? `<p class="tide-sub">Major</p><ul class="tide-ul">${majorLines}</ul>` : ''}
     ${minorLines ? `<p class="tide-sub">Minor</p><ul class="tide-ul">${minorLines}</ul>` : ''}
   `;
@@ -815,11 +815,11 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
     )
     .join('');
   block.innerHTML = `
-    <h3 class="subcard-title">Preia-mar e baixa-mar (modelo)</h3>
-    <p class="muted small">Horários e alturas <strong>derivados da curva horária</strong> do Open-Meteo (não estação hidrográfica). Use sempre fonte oficial para navegação.</p>
+    <h3 class="subcard-title">Preamar e baixamar (modelo)</h3>
+    <p class="muted small">Horários e alturas <strong>tirados da curva horária</strong> do Open-Meteo (não são dados de estação hidrográfica). Para navegar, use sempre fonte oficial.</p>
     <div class="tide-table-wrap">
       <table class="tide-table">
-        <thead><tr><th></th><th>Hora (local)</th><th>Nível (modelo)</th></tr></thead>
+        <thead><tr><th></th><th>Hora (seu fuso)</th><th>Nível (modelo)</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -862,7 +862,7 @@ function renderIndexWeights(isInland) {
   const maxPct = Math.max(...rows.map((r) => r.pct), 1);
   el.classList.remove('hidden');
   el.innerHTML = `
-    <h3 class="index-weights-title">Peso de cada factor no índice</h3>
+    <h3 class="index-weights-title">Peso de cada fator no índice</h3>
     ${rows
       .map(
         (r) => `
@@ -876,7 +876,7 @@ function renderIndexWeights(isInland) {
     `
       )
       .join('')}
-    <p class="index-weights-foot">Percentagens ≈ <strong>peso relativo</strong> dos termos na fórmula (costa vs interior). O índice final é limitado a 0–100.</p>
+    <p class="index-weights-foot">As porcentagens mostram o <strong>peso relativo</strong> de cada parte da fórmula (costa x interior). O índice final fica entre 0 e 100.</p>
   `;
 }
 
@@ -902,7 +902,7 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
   renderSolunarPanel(astroByDay?.get(dateKey));
   renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland);
 
-  intro.textContent = `Para ${weekdayPt(dateKey)}, com dados reais de previsão (vento, chuva, ondas, maré-modelo, lua e sol). O índice 0–100 combina estes sinais — não garante peixe.`;
+  intro.textContent = `Para ${weekdayPt(dateKey)}, com dados de previsão (vento, chuva, ondas, maré por modelo, Lua e Sol). O índice de 0 a 100 junta esses sinais — não garante pesca.`;
 
   const periodStats = PERIOD_DEFS.map((pd) => {
     const vals = [];
@@ -926,25 +926,25 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
   let vHtml = '';
   if (dayAvg >= 58) {
     vClass = '';
-    vHtml = `<strong>Visão geral: boas condições estimadas</strong> para este dia (média ~${dayAvg}/100). `;
+    vHtml = `<strong>Resumo: boas condições no modelo</strong> neste dia (média ~${dayAvg}/100). `;
   } else if (dayAvg >= 45) {
     vClass = 'verdict-mid';
-    vHtml = `<strong>Visão geral: condições médias</strong> (média ~${dayAvg}/100). `;
+    vHtml = `<strong>Resumo: condições médias</strong> (média ~${dayAvg}/100). `;
   } else {
     vClass = 'verdict-low';
-    vHtml = `<strong>Visão geral: dia mais difícil</strong> segundo o modelo (média ~${dayAvg}/100). `;
+    vHtml = `<strong>Resumo: dia mais difícil no modelo</strong> (média ~${dayAvg}/100). `;
   }
 
   if (bestPeriod && bestPeriod.avg != null) {
     const g = gradeLabel(bestPeriod.avg);
-    vHtml += `O período com melhor nota é a <strong>${bestPeriod.label.toLowerCase()}</strong>, com média de cerca de <strong>${bestPeriod.avg}/100</strong> (${g.text.toLowerCase()}). `;
+    vHtml += `O período com melhor nota é a <strong>${bestPeriod.label.toLowerCase()}</strong>, com média perto de <strong>${bestPeriod.avg}/100</strong> (${g.text.toLowerCase()}). `;
   }
   if (worstPeriod && worstPeriod.avg != null && worstPeriod.id !== bestPeriod?.id) {
     vHtml += `A <strong>${worstPeriod.label.toLowerCase()}</strong> tende a ser mais fraca (~${worstPeriod.avg}/100). `;
   }
   if (isInland) {
     vHtml +=
-      ' <em>Nota:</em> em lago/rio o modelo de maré é menos fiável; dá mais peso ao clima e à lua/sol.';
+      ' <em>Lembrete:</em> em lago ou rio a maré do modelo é menos confiável; o índice pesa mais clima, Lua e Sol.';
   }
   verdict.className = 'verdict-box ' + vClass;
   verdict.innerHTML = vHtml;
@@ -984,7 +984,7 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
   };
 
   if (goodWins.length) {
-    addHeading('Janelas contínuas em que o índice se mantém mais alto:');
+    addHeading('Faixas em que o índice fica mais alto por várias horas:');
     for (const w of goodWins) {
       const i0 = dayIdx[w.a];
       const i1 = dayIdx[w.b];
@@ -994,11 +994,11 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
       windowsEl.appendChild(line);
     }
   } else {
-    addHeading('Não há blocos longos de horas seguidas muito altas; olha o gráfico para picos isolados.');
+    addHeading('Não há muitas horas seguidas muito altas; veja o gráfico para picos isolados.');
   }
 
   if (poorWins.length) {
-    addHeading('Períodos contínuos mais fracos:');
+    addHeading('Faixas mais fracas em sequência:');
     for (const w of poorWins) {
       const i0 = dayIdx[w.a];
       const i1 = dayIdx[w.b];
@@ -1024,8 +1024,8 @@ function renderSummary(dayData, place, dateKey, astroByDay, marineMeta) {
     ['Média do dia', `${day.avgScore}/100`],
     ['Melhor hora (pico)', `${day.maxScore}/100`],
     ['Ponto no mapa', `${place.lat.toFixed(5)}°, ${place.lon.toFixed(5)}°`],
-    ['Grelha marinho (modelo)', `${gridLat}°, ${gridLon}°`],
-    ['Fuso', place.timezone || '—'],
+    ['Célula do modelo (mar)', `${gridLat}°, ${gridLon}°`],
+    ['Fuso horário', place.timezone || '—'],
   ];
   for (const [label, value] of cells) {
     const div = document.createElement('div');
@@ -1045,7 +1045,7 @@ function renderSummary(dayData, place, dateKey, astroByDay, marineMeta) {
     const ss = astro.sunset
       ? new Date(astro.sunset).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       : '—';
-    parts.push(`Sol (MET Norway): nascer ${sr} · pôr ${ss}`);
+    parts.push(`Sol (MET Norway): nascer do sol ${sr} · pôr do sol ${ss}`);
   }
 
   if (astro && astro.moonphase != null) {
@@ -1055,8 +1055,8 @@ function renderSummary(dayData, place, dateKey, astroByDay, marineMeta) {
     const ms = astro.moonset
       ? new Date(astro.moonset).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
       : null;
-    const ev = [mr ? `subida ${mr}` : null, ms ? `por ${ms}` : null].filter(Boolean).join(' · ');
-    parts.push(`Lua: ~${astro.moonphase.toFixed(0)}% iluminada${ev ? ` · ${ev}` : ''}`);
+    const ev = [mr ? `lua nascendo ${mr}` : null, ms ? `lua se pondo ${ms}` : null].filter(Boolean).join(' · ');
+    parts.push(`Lua: ~${astro.moonphase.toFixed(0)} % iluminada${ev ? ` · ${ev}` : ''}`);
   }
 
   sunRow.innerHTML = parts.length ? parts.join('<br/>') : '—';
@@ -1136,7 +1136,7 @@ function updateChart(labels, scores, seaNorm) {
             label(ctx) {
               const v = ctx.parsed.y;
               if (ctx.datasetIndex === 0) return `Índice: ${v}`;
-              return `Maré (norm.): ${v?.toFixed ? v.toFixed(2) : v}`;
+              return `Maré (relativa): ${v?.toFixed ? v.toFixed(2) : v}`;
             },
           },
         },
@@ -1335,7 +1335,7 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
     if (!placeLabel) placeLabel = `${lat.toFixed(4)}°, ${lon.toFixed(4)}°`;
 
     const aligned = alignByTime(marine, forecast);
-    if (!aligned.times.length) throw new Error('Sem dados horários para este ponto.');
+    if (!aligned.times.length) throw new Error('Sem dados horários para este ponto no mapa.');
 
     const offsetStr = formatMetOffset(forecast.utc_offset_seconds ?? utcPre ?? 0);
     const dayKeys = aligned.times.map((t) => t.slice(0, 10));
@@ -1386,12 +1386,12 @@ async function loadAtCoordinates(lat, lon, opts = {}) {
 
     const hint =
       opts.locationHint ||
-      '<span class="muted">Afinar no mapa ou nas coordenadas e «Aplicar» para recalcular.</span>';
-    $('locationLabel').innerHTML = `<strong>Ponto ativo:</strong> ${placeLabel}<br/>${hint}`;
+      '<span class="muted">Ajuste no mapa ou nas coordenadas e toque em <strong>Aplicar coordenadas</strong> para recalcular.</span>';
+    $('locationLabel').innerHTML = `<strong>Ponto selecionado:</strong> ${placeLabel}<br/>${hint}`;
     $('mainContent').classList.remove('hidden');
     requestAnimationFrame(() => state.map?.invalidateSize());
   } catch (e) {
-    showError(e.message || 'Erro ao carregar dados.');
+    showError(e.message || 'Erro ao carregar os dados.');
   } finally {
     $('loading').classList.add('hidden');
   }
@@ -1412,7 +1412,7 @@ function selectPlaceFromSearch(place) {
     label: formatPlace(place),
     timezone: place.timezone,
     locationHint:
-      '<span class="muted">Arrasta o pin no mapa até ao cais, barco ou margem exata onde vais pescar.</span>',
+      '<span class="muted">Arraste o marcador até o cais, o barco ou a margem exata onde você vai pescar.</span>',
   });
 }
 
@@ -1464,19 +1464,19 @@ function setupSearch() {
     try {
       const results = await searchPlaces(input.value);
       if (!results.length) {
-        showError('Nenhum local encontrado. Tente outro nome.');
+        showError('Nenhum lugar encontrado. Tente outro nome.');
         return;
       }
       initMap();
       selectPlaceFromSearch(results[0]);
     } catch (e) {
-      showError(e.message || 'Falha na pesquisa.');
+      showError(e.message || 'Erro na busca.');
     }
   });
 
   $('btnGeo').addEventListener('click', () => {
     if (!navigator.geolocation) {
-      showError('O seu dispositivo não suporta geolocalização.');
+      showError('Seu aparelho não oferece geolocalização.');
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -1492,7 +1492,7 @@ function setupSearch() {
         state.marker.openPopup();
         await loadAtCoordinates(lat, lon, { updateLabel: true });
       },
-      () => showError('Não foi possível obter a localização. Verifique as permissões.'),
+      () => showError('Não foi possível obter sua localização. Verifique as permissões do navegador.'),
       { enableHighAccuracy: true, timeout: 15000 }
     );
   });
@@ -1500,7 +1500,7 @@ function setupSearch() {
   $('btnApplyCoords').addEventListener('click', () => {
     const ll = getLatLonFromInputs();
     if (!ll) {
-      showError('Latitude e longitude inválidas. Use graus decimais (ex.: -23.03, -43.12).');
+      showError('Latitude ou longitude inválida. Use graus decimais (ex.: -23.03 e -43.12).');
       return;
     }
     hideError();

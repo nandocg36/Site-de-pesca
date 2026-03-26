@@ -2,9 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5" />
   <meta name="theme-color" content="#0a0f1a" />
-  <meta name="description" content="Melhores horários para pesca: mapa, marés, lua, sol e clima — ponto exato no mapa." />
+  <meta name="description" content="Melhores horários para pesca no Brasil: mapa, maré, lua, sol, vento e previsão — ponto exato no mapa." />
   <title>Horários de Pesca</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -22,27 +22,27 @@
       <div class="brand-bar">
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-name">Horários de Pesca</span>
-        <span class="brand-tag">Inteligência meteorológica &amp; marítima</span>
+        <span class="brand-tag">Previsão meteorológica e marítima</span>
       </div>
       <div class="hero-inner">
         <p class="hero-kicker">Dados em tempo real · maré · ondas · vento · solunar</p>
-        <h1>Planeia a tua sessão como um profissional</h1>
-        <p class="hero-lead">Define o <strong>ponto exato</strong> no mapa e recebe um <strong>índice transparente</strong> — hora a hora, com métricas reais e explicações claras.</p>
+        <h1>Planeje sua pescaria com precisão</h1>
+        <p class="hero-lead">Marque o <strong>ponto exato</strong> no mapa e veja um <strong>índice claro</strong>, hora a hora, com números reais e explicações em português.</p>
       </div>
     </header>
 
     <section class="search card card-elevated card-glass" aria-label="Localização">
       <div class="section-eyebrow">Localização</div>
-      <h2 class="card-title">Onde vais pescar?</h2>
+      <h2 class="card-title">Onde você vai pescar?</h2>
       <div class="map-steps" role="list">
-        <div class="map-step"><span class="map-step-num">1</span> Pesquisa ou GPS para aproximar a zona.</div>
-        <div class="map-step map-step-highlight"><span class="map-step-num">2</span> <strong>Clica no mapa</strong> no sítio exato (como no Google Maps) — o marcador azul move-se para esse ponto.</div>
-        <div class="map-step"><span class="map-step-num">3</span> Podes <strong>arrastar o marcador</strong> para afinar. Os dados recalculam automaticamente.</div>
+        <div class="map-step"><span class="map-step-num">1</span> Use a busca ou o GPS para chegar perto da região.</div>
+        <div class="map-step map-step-highlight"><span class="map-step-num">2</span> <strong>Toque no mapa</strong> no lugar exato (como no Google Maps). O marcador azul vai para esse ponto.</div>
+        <div class="map-step"><span class="map-step-num">3</span> Você pode <strong>arrastar o marcador</strong> para ajustar. Os dados são recalculados sozinhos.</div>
       </div>
       <div class="search-row">
-        <input type="search" id="placeQuery" placeholder="Cidade, aldeia, cais…" autocomplete="off" />
-        <button type="button" id="btnSearch" class="btn primary">Pesquisar</button>
-        <button type="button" id="btnGeo" class="btn" title="Usar GPS">GPS</button>
+        <input type="search" id="placeQuery" placeholder="Cidade, rio, cais…" autocomplete="off" enterkeyhint="search" />
+        <button type="button" id="btnSearch" class="btn primary">Buscar</button>
+        <button type="button" id="btnGeo" class="btn" title="Usar localização atual">GPS</button>
       </div>
       <ul id="suggestions" class="suggestions hidden" role="listbox"></ul>
 
@@ -50,14 +50,14 @@
         <label class="field-label" for="waterContext">Tipo de água (ajusta o modelo)</label>
         <select id="waterContext" class="day-select water-select">
           <option value="coastal">Oceano / costa / estuário</option>
-          <option value="inland">Lago / rio / terra (água doce ou interior)</option>
+          <option value="inland">Lago / rio / água doce (interior)</option>
         </select>
-        <p class="muted small water-hint">Na costa usamos células <em>no mar</em> para maré e temperatura da água. No interior a maré do modelo é menos fiável — o texto assinala isso.</p>
+        <p class="muted small water-hint">Na costa usamos células <em>no mar</em> para maré e temperatura da água. No interior a maré do modelo é menos confiável — o app deixa isso claro no texto.</p>
       </div>
 
-      <p class="map-banner" id="mapBanner"><span class="map-banner-icon" aria-hidden="true">📍</span> <strong>Mapa interativo</strong> — clica em qualquer sítio para escolher as coordenadas exatas do ponto de pesca.</p>
-      <div id="map" class="map-wrap" role="application" aria-label="Mapa interativo: clique para definir o ponto de pesca"></div>
-      <p class="map-help muted small">Camada <strong>Mapa</strong> ou <strong>Satélite</strong> (canto superior direito). Zoom com +/− ou gestos.</p>
+      <p class="map-banner" id="mapBanner"><span class="map-banner-icon" aria-hidden="true">📍</span> <strong>Mapa interativo</strong> — toque em qualquer lugar para escolher as coordenadas exatas do ponto de pesca.</p>
+      <div id="map" class="map-wrap" role="application" aria-label="Mapa: toque para definir o ponto de pesca"></div>
+      <p class="map-help muted small">Camadas <strong>Mapa</strong> ou <strong>Satélite</strong> (canto superior direito). Dê zoom com os botões +/− ou com os dedos.</p>
 
       <div class="coord-toolbar">
         <div class="coord-inputs">
@@ -70,7 +70,7 @@
             <input type="number" id="inputLon" step="0.00001" inputmode="decimal" />
           </label>
         </div>
-        <button type="button" id="btnApplyCoords" class="btn primary">Aplicar coordenadas</button>
+        <button type="button" id="btnApplyCoords" class="btn primary btn-block-touch">Aplicar coordenadas</button>
       </div>
       <div id="locationLabel" class="location-label muted"></div>
     </section>
@@ -79,7 +79,7 @@
 
     <section id="loading" class="loading hidden" aria-live="polite">
       <div class="spinner"></div>
-      <span>A carregar dados para o ponto escolhido…</span>
+      <span>Carregando dados do ponto escolhido…</span>
     </section>
 
     <main id="mainContent" class="hidden main-stack">
@@ -90,15 +90,15 @@
         </button>
         <div class="accordion-panel hidden" id="metricsPanel">
           <ul class="metric-list">
-            <li><strong>Maré</strong> — nível horário + <strong>preia-mar / baixa-mar</strong> estimados a partir da curva do modelo (Open-Meteo Marine). <em>Não</em> substitui tábua náutica oficial nem estação hidrográfica.</li>
-            <li><strong>Ondas</strong> — altura significativa (Marine API), na costa.</li>
-            <li><strong>Vento e rajadas</strong> — 10 m (Forecast API).</li>
-            <li><strong>Chuva, humidade, nuvens</strong> — hora a hora (Forecast).</li>
-            <li><strong>Solunar</strong> — janelas <em>major/minor</em> derivadas dos horários astronómicos da lua (MET Norway), no estilo de muitas tábuas de pesca.</li>
-            <li><strong>Lua e sol</strong> — fase %, subida/pôr, lua no céu (MET Norway).</li>
-            <li><strong>Temperatura e pressão</strong> — ar ao nível do mar (Forecast).</li>
+            <li><strong>Maré</strong> — nível hora a hora e <strong>preamar / baixamar</strong> estimados pela curva do modelo (Open-Meteo Marine). <em>Não</em> substitui tabela náutica oficial nem estação hidrográfica.</li>
+            <li><strong>Ondas</strong> — altura significativa (API Marine), na costa.</li>
+            <li><strong>Vento e rajadas</strong> — a 10 m de altura (API de previsão).</li>
+            <li><strong>Chuva, umidade, nuvens</strong> — hora a hora (previsão).</li>
+            <li><strong>Solunar</strong> — janelas <em>major</em> e <em>minor</em> a partir dos horários astronômicos da lua (MET Norway), no estilo de várias tabelas de pesca.</li>
+            <li><strong>Lua e sol</strong> — fase em %, nascer e pôr da lua, posição no céu (MET Norway).</li>
+            <li><strong>Temperatura e pressão</strong> — ar ao nível do mar (previsão).</li>
           </ul>
-          <p class="muted small">Todos os valores numéricos vêm das APIs indicadas; o <strong>índice 0–100</strong> é uma combinação ponderada desses sinais (não é medição directa de “peixe”).</p>
+          <p class="muted small">Todos os números vêm das fontes citadas; o <strong>índice de 0 a 100</strong> é uma média ponderada desses sinais (não mede peixe diretamente).</p>
         </div>
       </section>
 
@@ -126,43 +126,43 @@
 
       <section class="card card-elevated card-glass" aria-label="Lista hora a hora">
         <div class="section-eyebrow">Detalhe</div>
-        <h2 class="card-title">Hora a hora — o que esperar</h2>
-        <p class="muted small">Cada linha mostra <strong>dados reais da hora</strong> (vento, chuva, ondas, etc.) e explica <strong>porquê</strong> o índice sobe ou desce.</p>
+        <h2 class="card-title">Hora a hora</h2>
+        <p class="muted small">Cada bloco mostra os <strong>dados daquela hora</strong> (vento, chuva, ondas etc.) e explica <strong>por que</strong> o índice sobe ou cai.</p>
         <div class="hourly-sort-row">
           <label class="hourly-sort-label" for="hourlySort">Ordenar</label>
           <select id="hourlySort" class="day-select hourly-sort-select">
             <option value="best">Melhores horas primeiro</option>
-            <option value="time">Do início ao fim do dia</option>
+            <option value="time">Do começo ao fim do dia</option>
           </select>
         </div>
         <div id="hourlyList" class="hourly-list"></div>
       </section>
 
       <section class="card chart-card card-elevated card-glass" aria-label="Gráfico do dia">
-        <div class="section-eyebrow">Visualização</div>
-        <h2 class="card-title">Gráfico do dia</h2>
-        <p class="muted small">Barras = índice; linha = nível do mar (só relevante na costa).</p>
+        <div class="section-eyebrow">Gráfico</div>
+        <h2 class="card-title">Índice ao longo do dia</h2>
+        <p class="muted small">Barras = índice; linha tracejada = nível do mar normalizado (só faz sentido na costa).</p>
         <div class="chart-wrap">
-          <canvas id="dayChart" width="900" height="320" role="img" aria-label="Gráfico de barras horário"></canvas>
+          <canvas id="dayChart" width="900" height="320" role="img" aria-label="Gráfico de barras por hora"></canvas>
         </div>
         <div class="legend">
           <span><i class="leg bar"></i> Índice</span>
-          <span><i class="leg tide"></i> Maré (rel.)</span>
+          <span><i class="leg tide"></i> Maré (relativa)</span>
         </div>
       </section>
 
       <section class="card card-elevated card-glass" aria-label="Próximos dias">
-        <div class="section-eyebrow">Horizonte</div>
-        <h2 class="card-title">Próximos dias</h2>
+        <div class="section-eyebrow">Próximos dias</div>
+        <h2 class="card-title">Média do índice por dia</h2>
         <div class="forecast-list" id="forecastList"></div>
       </section>
     </main>
 
     <footer class="footer muted small">
       Mapas © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
-      · Previsão e marinho: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+      · Previsão e dados marinhos: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
       · Sol, lua e janelas solunar: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>.
-      Maré e ondas são <strong>modelo numérico</strong>, não tábua oficial.
+      Maré e ondas vêm de <strong>modelo numérico</strong>, não de tabela oficial de navegação.
     </footer>
   </div>
 

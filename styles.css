@@ -35,11 +35,13 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-tap-highlight-color: rgba(94, 184, 255, 0.15);
 }
 
 body {
   margin: 0;
   min-height: 100dvh;
+  min-height: 100svh;
   background: var(--bg-void);
   background-image:
     radial-gradient(ellipse 120% 80% at 50% -30%, rgba(40, 100, 180, 0.35) 0%, transparent 50%),
@@ -73,7 +75,8 @@ a:hover {
 .app {
   max-width: 920px;
   margin: 0 auto;
-  padding: 0 1.15rem 3rem;
+  padding: 0 max(1rem, env(safe-area-inset-left)) calc(2.5rem + env(safe-area-inset-bottom, 0))
+    max(1rem, env(safe-area-inset-right));
   position: relative;
   z-index: 1;
 }
@@ -256,7 +259,9 @@ a:hover {
 #placeQuery {
   flex: 1 1 200px;
   min-width: 0;
+  min-height: 48px;
   padding: 0.8rem 1.05rem;
+  font-size: 16px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: rgba(8, 14, 28, 0.65);
@@ -273,7 +278,8 @@ a:hover {
 }
 
 .btn {
-  padding: 0.8rem 1.2rem;
+  min-height: 48px;
+  padding: 0.75rem 1.2rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: rgba(12, 20, 38, 0.8);
@@ -305,6 +311,11 @@ a:hover {
 .btn.primary:hover {
   filter: brightness(1.08);
   box-shadow: 0 6px 28px rgba(40, 120, 220, 0.45);
+}
+
+.btn-block-touch {
+  width: 100%;
+  justify-content: center;
 }
 
 .water-mode-row {
@@ -377,7 +388,8 @@ a:hover {
 }
 
 .map-wrap {
-  height: min(58vh, 420px);
+  height: min(52dvh, 380px);
+  min-height: 220px;
   width: 100%;
   margin-top: 0;
   border-radius: var(--radius-sm);
@@ -486,7 +498,8 @@ a:hover {
   background: rgba(8, 14, 28, 0.65);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.95rem;
+  font-size: 16px;
+  min-height: 48px;
 }
 
 .suggestions {
@@ -857,12 +870,13 @@ a:hover {
 
 .day-select {
   flex: 1;
+  min-height: 48px;
   padding: 0.65rem 0.85rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: rgba(8, 14, 28, 0.65);
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: 16px;
   font-family: inherit;
 }
 
@@ -909,7 +923,8 @@ a:hover {
 
 .chart-wrap {
   position: relative;
-  height: min(300px, 55vw);
+  height: min(260px, 48vw);
+  min-height: 200px;
   margin-top: 0.9rem;
 }
 
@@ -1022,9 +1037,10 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  max-height: min(70vh, 520px);
+  max-height: min(55dvh, 480px);
   overflow-y: auto;
   padding-right: 0.35rem;
+  -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
@@ -1172,6 +1188,54 @@ a:hover {
 
   .hero-lead {
     margin-inline: 0;
+  }
+
+  .map-wrap {
+    height: min(58vh, 420px);
+  }
+
+  .hourly-list {
+    max-height: min(70vh, 520px);
+  }
+
+  .chart-wrap {
+    height: min(300px, 55vw);
+  }
+}
+
+@media (max-width: 520px) {
+  .search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-row .btn {
+    width: 100%;
+  }
+
+  .coord-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .day-picker-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hourly-sort-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hourly-sort-select {
+    max-width: none;
+    width: 100%;
+  }
+
+  .forecast-item {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "Horários de Pesca",
   "short_name": "Pesca",
-  "description": "Melhores horários para pesca com marés, lua, sol e meteorologia em tempo real.",
+  "description": "Melhores horários para pesca: maré, lua, sol, vento e previsão no mapa.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
