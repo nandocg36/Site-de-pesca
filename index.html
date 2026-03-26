@@ -21,6 +21,10 @@
         <span class="brand-mark" aria-hidden="true"></span>
         <span class="brand-name">Plataforma Norte</span>
         <span class="brand-tag">Balneário Rincão · SC</span>
+        <button type="button" class="btn-menu" id="btnMenu" aria-expanded="false" aria-controls="appDrawer" title="Menu">
+          <span class="btn-menu-lines" aria-hidden="true"></span>
+          <span class="visually-hidden">Abrir menu</span>
+        </button>
       </div>
       <div class="hero-inner">
         <p class="hero-kicker">Previsão de pesca</p>
@@ -38,21 +42,6 @@
       <p class="muted small fixed-loc-coords">Coordenadas: −28,82718° · −49,21348° · modelo <em>mar</em> (costa)</p>
     </section>
 
-    <section class="card card-elevated card-glass official-tide-note" aria-label="Sobre maré oficial">
-      <div class="section-eyebrow">Maré — precisão</div>
-      <h2 class="card-title card-title-inline">Por que a maré aqui não é a tábua oficial?</h2>
-      <p class="muted small tide-explain">
-        No Brasil, a <strong>tábua de maré oficial</strong> para navegação e referência legal vem da <strong>Marinha</strong> (Centro de Hidrografia da Marinha — CHM), com <strong>estações maregráficas</strong>, <strong>constantes harmônicas</strong> e <strong>datum</strong> (referência de altura) próprios de cada porto.
-        Este app usa o <strong>Open-Meteo Marine</strong>: é um <strong>modelo numérico global</strong> (simulação do oceano), útil para tendência e planejamento de pesca, mas <strong>não é</strong> a mesma publicação nem o mesmo rigor da tábua do CHM para o seu cais.
-      </p>
-      <p class="muted small tide-explain">
-        Para horários e alturas <strong>oficiais</strong> da região, use a
-        <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">Tábua de maré do CHM</a>
-        ou o <a href="https://www.marinha.mil.br/chm/dados-do-bndo/acesso-dados-e-produtos" target="_blank" rel="noopener">acesso a dados da Marinha</a>.
-        Integrar esses dados “oficiais” no app de forma automática exige <strong>fonte autorizada</strong> (API, arquivo ou convênio) — hoje isso não está disponível de graça como a previsão do tempo em qualquer coordenada.
-      </p>
-    </section>
-
     <section id="errorBox" class="error hidden" role="alert"></section>
 
     <section id="loading" class="loading" aria-live="polite">
@@ -61,31 +50,11 @@
     </section>
 
     <main id="mainContent" class="hidden main-stack">
-      <section class="card metrics card-elevated card-glass" aria-label="Métricas e como usar">
-        <div class="section-eyebrow">Metodologia</div>
-        <button type="button" class="accordion-toggle" id="metricsToggle" aria-expanded="false">
-          Como interpretamos o índice
-        </button>
-        <div class="accordion-panel hidden" id="metricsPanel">
-          <ul class="metric-list">
-            <li><strong>Maré</strong> — nível hora a hora e <strong>preamar / baixamar</strong> estimados pela curva do modelo (Open-Meteo Marine). <em>Não</em> substitui tabela náutica oficial nem estação hidrográfica.</li>
-            <li><strong>Ondas</strong> — altura significativa (API Marine), na costa.</li>
-            <li><strong>Vento e rajadas</strong> — a 10 m de altura (API de previsão).</li>
-            <li><strong>Chuva, umidade, nuvens</strong> — hora a hora (previsão).</li>
-            <li><strong>Solunar</strong> — janelas <em>major</em> e <em>minor</em> a partir dos horários astronômicos da lua (MET Norway), no estilo de várias tabelas de pesca.</li>
-            <li><strong>Lua e sol</strong> — fase em %, nascer e pôr da lua, posição no céu (MET Norway).</li>
-            <li><strong>Temperatura e pressão</strong> — ar ao nível do mar (previsão).</li>
-          </ul>
-          <p class="muted small">Todos os números vêm das fontes citadas; o <strong>índice de 0 a 100</strong> é uma média ponderada desses sinais (não mede peixe diretamente).</p>
-        </div>
-      </section>
-
       <section class="card card-elevated highlight-card card-glow" id="recommendations" aria-label="Recomendações do dia">
         <div class="section-eyebrow section-eyebrow-accent">Hoje</div>
         <h2 class="card-title">Recomendações do dia</h2>
         <p class="muted small" id="recIntro"></p>
         <div id="recVerdict" class="verdict-box"></div>
-        <div id="indexWeights" class="index-weights hidden" aria-label="Pesos do índice"></div>
         <div id="solunarBlock" class="solunar-block hidden"></div>
         <div id="tideTableBlock" class="tide-table-block hidden"></div>
         <div id="recPeriods" class="period-grid"></div>
@@ -142,6 +111,52 @@
       <strong>Maré oficial</strong> no Brasil: <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">CHM / Marinha</a>.
     </footer>
   </div>
+
+  <div class="drawer-backdrop hidden" id="drawerBackdrop" aria-hidden="true"></div>
+  <aside class="app-drawer" id="appDrawer" aria-hidden="true" aria-label="Menu de informações">
+    <div class="drawer-header">
+      <h2 class="drawer-title">Informações</h2>
+      <button type="button" class="drawer-close" id="btnCloseDrawer" aria-label="Fechar menu">×</button>
+    </div>
+    <nav class="drawer-nav" aria-label="Secções">
+      <button type="button" class="drawer-nav-btn is-active" data-drawer-panel="tide">Maré e precisão</button>
+      <button type="button" class="drawer-nav-btn" data-drawer-panel="method">Como funciona o índice</button>
+      <button type="button" class="drawer-nav-btn" data-drawer-panel="weights">Pesos no índice</button>
+    </nav>
+    <div class="drawer-panels">
+      <div class="drawer-panel is-active" id="drawerPanelTide" role="region" aria-labelledby="drawerTideHeading">
+        <h3 class="drawer-panel-title" id="drawerTideHeading">Maré e precisão</h3>
+        <p class="muted small tide-explain">
+          No Brasil, a <strong>tábua de maré oficial</strong> para navegação e referência legal vem da <strong>Marinha</strong> (Centro de Hidrografia da Marinha — CHM), com <strong>estações maregráficas</strong>, <strong>constantes harmônicas</strong> e <strong>datum</strong> (referência de altura) próprios de cada porto.
+          Este app usa o <strong>Open-Meteo Marine</strong>: é um <strong>modelo numérico global</strong> (simulação do oceano), útil para tendência e planejamento de pesca, mas <strong>não é</strong> a mesma publicação nem o mesmo rigor da tábua do CHM para o seu cais.
+        </p>
+        <p class="muted small tide-explain">
+          Para horários e alturas <strong>oficiais</strong> da região, use a
+          <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">Tábua de maré do CHM</a>
+          ou o <a href="https://www.marinha.mil.br/chm/dados-do-bndo/acesso-dados-e-produtos" target="_blank" rel="noopener">acesso a dados da Marinha</a>.
+          Integrar dados oficiais no app de forma automática exige <strong>fonte autorizada</strong> (API, arquivo ou convênio).
+        </p>
+      </div>
+      <div class="drawer-panel hidden" id="drawerPanelMethod" role="region" aria-labelledby="drawerMethodHeading">
+        <h3 class="drawer-panel-title" id="drawerMethodHeading">Como funciona o índice</h3>
+        <ul class="metric-list">
+          <li><strong>Maré</strong> — nível hora a hora e <strong>preamar / baixamar</strong> estimados pela curva do modelo (Open-Meteo Marine). <em>Não</em> substitui tabela náutica oficial nem estação hidrográfica.</li>
+          <li><strong>Ondas</strong> — altura significativa (API Marine), na costa.</li>
+          <li><strong>Vento e rajadas</strong> — a 10 m de altura (API de previsão).</li>
+          <li><strong>Chuva, umidade, nuvens</strong> — hora a hora (previsão).</li>
+          <li><strong>Solunar</strong> — janelas <em>major</em> e <em>minor</em> a partir dos horários astronômicos da lua (MET Norway), no estilo de várias tabelas de pesca.</li>
+          <li><strong>Lua e sol</strong> — fase em %, nascer e pôr da lua, posição no céu (MET Norway).</li>
+          <li><strong>Temperatura e pressão</strong> — ar ao nível do mar (previsão).</li>
+        </ul>
+        <p class="muted small">Todos os números vêm das fontes citadas; o <strong>índice de 0 a 100</strong> é uma média ponderada desses sinais (não mede peixe diretamente).</p>
+      </div>
+      <div class="drawer-panel hidden" id="drawerPanelWeights" role="region" aria-labelledby="drawerWeightsHeading">
+        <h3 class="drawer-panel-title" id="drawerWeightsHeading">Pesos no índice</h3>
+        <p class="muted small" id="menuWeightsPlaceholder">Os pesos aparecem aqui depois que a previsão carregar.</p>
+        <div id="menuWeights" class="index-weights menu-weights-inner" aria-live="polite"></div>
+      </div>
+    </div>
+  </aside>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" crossorigin="anonymous"></script>
   <script type="module" src="app.js"></script>

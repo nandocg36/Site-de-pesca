@@ -727,11 +727,12 @@ function getIndexWeightRows(isInland) {
 }
 
 function renderIndexWeights(isInland) {
-  const el = $('indexWeights');
+  const el = $('menuWeights');
+  const placeholder = $('menuWeightsPlaceholder');
   if (!el) return;
   const rows = getIndexWeightRows(isInland);
   const maxPct = Math.max(...rows.map((r) => r.pct), 1);
-  el.classList.remove('hidden');
+  if (placeholder) placeholder.classList.add('hidden');
   el.innerHTML = `
     <h3 class="index-weights-title">Peso de cada fator no índice</h3>
     ${rows
@@ -829,7 +830,9 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
     windowsEl.innerHTML = '';
     $('solunarBlock')?.classList.add('hidden');
     $('tideTableBlock')?.classList.add('hidden');
-    $('indexWeights')?.classList.add('hidden');
+    const mw = $('menuWeights');
+    if (mw) mw.innerHTML = '';
+    $('menuWeightsPlaceholder')?.classList.remove('hidden');
     return;
   }
 
@@ -1204,10 +1207,68 @@ async function loadFixedLocation() {
   }
 }
 
-$('metricsToggle').addEventListener('click', () => {
-  const panel = $('metricsPanel');
-  const open = panel.classList.toggle('hidden');
-  $('metricsToggle').setAttribute('aria-expanded', String(!open));
+function setDrawerOpen(open) {
+  const drawer = $('appDrawer');
+  const backdrop = $('drawerBackdrop');
+  const btn = $('btnMenu');
+  if (!drawer || !backdrop || !btn) return;
+  drawer.setAttribute('aria-hidden', String(!open));
+  backdrop.setAttribute('aria-hidden', String(!open));
+  btn.setAttribute('aria-expanded', String(open));
+  if (open) {
+    backdrop.classList.remove('hidden');
+    document.body.classList.add('drawer-open');
+  } else {
+    backdrop.classList.add('hidden');
+    document.body.classList.remove('drawer-open');
+  }
+}
+
+function setDrawerPanel(panelId) {
+  const map = {
+    tide: { nav: 'tide', panel: 'drawerPanelTide' },
+    method: { nav: 'method', panel: 'drawerPanelMethod' },
+    weights: { nav: 'weights', panel: 'drawerPanelWeights' },
+  };
+  const cfg = map[panelId] || map.tide;
+  document.querySelectorAll('.drawer-nav-btn').forEach((b) => {
+    b.classList.toggle('is-active', b.dataset.drawerPanel === cfg.nav);
+  });
+  ['drawerPanelTide', 'drawerPanelMethod', 'drawerPanelWeights'].forEach((id) => {
+    const p = $(id);
+    if (!p) return;
+    const show = id === cfg.panel;
+    p.classList.toggle('hidden', !show);
+    p.classList.toggle('is-active', show);
+  });
+}
+
+$('btnMenu')?.addEventListener('click', () => {
+  const drawer = $('appDrawer');
+  const isOpen = drawer?.getAttribute('aria-hidden') === 'false';
+  if (isOpen) {
+    setDrawerOpen(false);
+  } else {
+    setDrawerOpen(true);
+    setDrawerPanel('tide');
+  }
+});
+
+$('btnCloseDrawer')?.addEventListener('click', () => setDrawerOpen(false));
+
+$('drawerBackdrop')?.addEventListener('click', () => setDrawerOpen(false));
+
+document.querySelectorAll('.drawer-nav-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const id = btn.dataset.drawerPanel;
+    if (id) setDrawerPanel(id);
+  });
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const drawer = $('appDrawer');
+  if (drawer?.getAttribute('aria-hidden') === 'false') setDrawerOpen(false);
 });
 
 $('hourlySort').addEventListener('change', () => {
