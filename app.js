@@ -804,8 +804,8 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
     )
     .join('');
   block.innerHTML = `
-    <h3 class="subcard-title">Preamar e baixamar (modelo)</h3>
-    <p class="muted small">Horários e alturas <strong>tirados da curva horária</strong> do Open-Meteo (não são dados de estação hidrográfica). Para navegar, use sempre fonte oficial.</p>
+    <h3 class="subcard-title">Preamar e baixamar (modelo — não oficial)</h3>
+    <p class="muted small">Estes horários são <strong>estimados pela curva do modelo Open-Meteo</strong>, não pela tábua do CHM/Marinha nem por estação maregráfica local. Use só como orientação para pesca; para barco e segurança, consulte a <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">tábua oficial</a>.</p>
     <div class="tide-table-wrap">
       <table class="tide-table">
         <thead><tr><th></th><th>Hora (seu fuso)</th><th>Nível (modelo)</th></tr></thead>

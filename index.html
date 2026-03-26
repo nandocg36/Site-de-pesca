@@ -38,6 +38,21 @@
       <p class="muted small fixed-loc-coords">Coordenadas: −28,82718° · −49,21348° · modelo <em>mar</em> (costa)</p>
     </section>
 
+    <section class="card card-elevated card-glass official-tide-note" aria-label="Sobre maré oficial">
+      <div class="section-eyebrow">Maré — precisão</div>
+      <h2 class="card-title card-title-inline">Por que a maré aqui não é a tábua oficial?</h2>
+      <p class="muted small tide-explain">
+        No Brasil, a <strong>tábua de maré oficial</strong> para navegação e referência legal vem da <strong>Marinha</strong> (Centro de Hidrografia da Marinha — CHM), com <strong>estações maregráficas</strong>, <strong>constantes harmônicas</strong> e <strong>datum</strong> (referência de altura) próprios de cada porto.
+        Este app usa o <strong>Open-Meteo Marine</strong>: é um <strong>modelo numérico global</strong> (simulação do oceano), útil para tendência e planejamento de pesca, mas <strong>não é</strong> a mesma publicação nem o mesmo rigor da tábua do CHM para o seu cais.
+      </p>
+      <p class="muted small tide-explain">
+        Para horários e alturas <strong>oficiais</strong> da região, use a
+        <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">Tábua de maré do CHM</a>
+        ou o <a href="https://www.marinha.mil.br/chm/dados-do-bndo/acesso-dados-e-produtos" target="_blank" rel="noopener">acesso a dados da Marinha</a>.
+        Integrar esses dados “oficiais” no app de forma automática exige <strong>fonte autorizada</strong> (API, arquivo ou convênio) — hoje isso não está disponível de graça como a previsão do tempo em qualquer coordenada.
+      </p>
+    </section>
+
     <section id="errorBox" class="error hidden" role="alert"></section>
 
     <section id="loading" class="loading" aria-live="polite">
@@ -122,9 +137,9 @@
     </main>
 
     <footer class="footer muted small">
-      Previsão e dados marinhos: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
-      · Sol, lua e janelas solunar: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>.
-      Maré e ondas vêm de <strong>modelo numérico</strong>, não de tabela oficial de navegação.
+      Clima e maré (modelo): <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+      · Sol e lua: <a href="https://api.met.no/" target="_blank" rel="noopener">MET Norway</a>.
+      <strong>Maré oficial</strong> no Brasil: <a href="https://www.marinha.mil.br/chm/tabuas-de-mare" target="_blank" rel="noopener">CHM / Marinha</a>.
     </footer>
   </div>
 
