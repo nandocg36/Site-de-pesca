@@ -826,6 +826,60 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland) {
   `;
 }
 
+function getIndexWeightRows(isInland) {
+  if (isInland) {
+    return [
+      { label: 'Maré — viragem (modelo)', pct: 8 },
+      { label: 'Maré — ritmo do fluxo', pct: 5 },
+      { label: 'Lua, solunar & fase', pct: 21 },
+      { label: 'Sol — nascer / pôr / crepúsculo', pct: 16 },
+      { label: 'Pressão atmosférica', pct: 11 },
+      { label: 'Estabilidade da temperatura do ar', pct: 9 },
+      { label: 'Vento & rajadas', pct: 10 },
+      { label: 'Chuva & probabilidade', pct: 9 },
+      { label: 'Ondas (peso reduzido)', pct: 4 },
+      { label: 'Temperatura superficial do mar (SST)', pct: 7 },
+    ];
+  }
+  return [
+    { label: 'Maré — viragem (modelo)', pct: 19 },
+    { label: 'Maré — ritmo do fluxo', pct: 8 },
+    { label: 'Lua, solunar & fase', pct: 16 },
+    { label: 'Sol — nascer / pôr / crepúsculo', pct: 12 },
+    { label: 'Pressão atmosférica', pct: 9 },
+    { label: 'Estabilidade da temperatura do ar', pct: 7 },
+    { label: 'Vento & rajadas', pct: 8 },
+    { label: 'Chuva & probabilidade', pct: 7 },
+    { label: 'Altura de onda', pct: 6 },
+    { label: 'Temperatura superficial do mar (SST)', pct: 8 },
+  ];
+}
+
+function renderIndexWeights(isInland) {
+  const el = $('indexWeights');
+  if (!el) return;
+  const rows = getIndexWeightRows(isInland);
+  const maxPct = Math.max(...rows.map((r) => r.pct), 1);
+  el.classList.remove('hidden');
+  el.innerHTML = `
+    <h3 class="index-weights-title">Peso de cada factor no índice</h3>
+    ${rows
+      .map(
+        (r) => `
+      <div class="weight-row">
+        <span class="weight-label">${r.label}</span>
+        <span class="weight-pct">${r.pct}%</span>
+        <div class="weight-track" aria-hidden="true">
+          <div class="weight-fill" style="width:${(r.pct / maxPct) * 100}%"></div>
+        </div>
+      </div>
+    `
+      )
+      .join('')}
+    <p class="index-weights-foot">Percentagens ≈ <strong>peso relativo</strong> dos termos na fórmula (costa vs interior). O índice final é limitado a 0–100.</p>
+  `;
+}
+
 function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroByDay, aligned) {
   const dayIdx = sliceDayIndices(times, dateKey);
   const intro = $('recIntro');
@@ -840,9 +894,11 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
     windowsEl.innerHTML = '';
     $('solunarBlock')?.classList.add('hidden');
     $('tideTableBlock')?.classList.add('hidden');
+    $('indexWeights')?.classList.add('hidden');
     return;
   }
 
+  renderIndexWeights(isInland);
   renderSolunarPanel(astroByDay?.get(dateKey));
   renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland);
 
@@ -1027,6 +1083,9 @@ function updateChart(labels, scores, seaNorm) {
   const ctx = canvas.getContext('2d');
   if (state.chart) state.chart.destroy();
 
+  const tickColor = '#8b9cb8';
+  const gridColor = 'rgba(100, 140, 190, 0.12)';
+
   state.chart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -1037,19 +1096,24 @@ function updateChart(labels, scores, seaNorm) {
           label: 'Índice',
           data: scores,
           backgroundColor: scores.map((s) =>
-            s >= 65 ? 'rgba(62, 224, 168, 0.8)' : s >= 45 ? 'rgba(78, 176, 255, 0.65)' : 'rgba(255, 123, 123, 0.55)'
+            s >= 65
+              ? 'rgba(94, 240, 200, 0.75)'
+              : s >= 45
+                ? 'rgba(94, 184, 255, 0.6)'
+                : 'rgba(255, 138, 138, 0.5)'
           ),
-          borderRadius: 6,
+          borderRadius: 8,
           yAxisID: 'y',
         },
         {
           type: 'line',
           label: 'Maré',
           data: seaNorm,
-          borderColor: 'rgba(255, 210, 140, 0.95)',
-          borderDash: [5, 5],
-          tension: 0.35,
+          borderColor: 'rgba(255, 215, 150, 0.9)',
+          borderDash: [6, 4],
+          tension: 0.4,
           pointRadius: 0,
+          borderWidth: 2,
           yAxisID: 'y1',
         },
       ],
@@ -1061,6 +1125,13 @@ function updateChart(labels, scores, seaNorm) {
       plugins: {
         legend: { display: false },
         tooltip: {
+          backgroundColor: 'rgba(12, 18, 32, 0.94)',
+          titleColor: '#f0f4fc',
+          bodyColor: '#c5d4e8',
+          borderColor: 'rgba(100, 140, 200, 0.25)',
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 10,
           callbacks: {
             label(ctx) {
               const v = ctx.parsed.y;
@@ -1072,21 +1143,21 @@ function updateChart(labels, scores, seaNorm) {
       },
       scales: {
         x: {
-          ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 14, color: '#8ba3c2' },
-          grid: { color: 'rgba(42, 74, 111, 0.45)' },
+          ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 14, color: tickColor },
+          grid: { color: gridColor },
         },
         y: {
           min: 0,
           max: 100,
-          title: { display: true, text: 'Índice', color: '#8ba3c2' },
-          ticks: { color: '#8ba3c2' },
-          grid: { color: 'rgba(42, 74, 111, 0.45)' },
+          title: { display: true, text: 'Índice', color: tickColor, font: { size: 11 } },
+          ticks: { color: tickColor },
+          grid: { color: gridColor },
         },
         y1: {
           position: 'right',
           min: 0,
           max: 1,
-          title: { display: true, text: 'Maré', color: '#e8c078' },
+          title: { display: true, text: 'Maré', color: '#e8c86a', font: { size: 11 } },
           ticks: { display: false },
           grid: { drawOnChartArea: false },
         },

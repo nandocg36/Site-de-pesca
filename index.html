@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0d2137" />
+  <meta name="theme-color" content="#0a0f1a" />
   <meta name="description" content="Melhores horários para pesca: mapa, marés, lua, sol e clima — ponto exato no mapa." />
   <title>Horários de Pesca</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="styles.css" />
@@ -16,16 +16,23 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
+  <div class="noise" aria-hidden="true"></div>
   <div class="app">
     <header class="hero">
+      <div class="brand-bar">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-name">Horários de Pesca</span>
+        <span class="brand-tag">Inteligência meteorológica &amp; marítima</span>
+      </div>
       <div class="hero-inner">
-        <p class="hero-kicker">Dados reais · maré · ondas · vento · solunar</p>
-        <h1>Horários de Pesca</h1>
-        <p class="hero-lead">Escolhe o <strong>ponto exato</strong> no mapa (mar, estuário ou lago) e vê <strong>quando vale a pena ir</strong> — em texto e em gráfico.</p>
+        <p class="hero-kicker">Dados em tempo real · maré · ondas · vento · solunar</p>
+        <h1>Planeia a tua sessão como um profissional</h1>
+        <p class="hero-lead">Define o <strong>ponto exato</strong> no mapa e recebe um <strong>índice transparente</strong> — hora a hora, com métricas reais e explicações claras.</p>
       </div>
     </header>
 
-    <section class="search card card-elevated" aria-label="Localização">
+    <section class="search card card-elevated card-glass" aria-label="Localização">
+      <div class="section-eyebrow">Localização</div>
       <h2 class="card-title">Onde vais pescar?</h2>
       <div class="map-steps" role="list">
         <div class="map-step"><span class="map-step-num">1</span> Pesquisa ou GPS para aproximar a zona.</div>
@@ -75,8 +82,9 @@
       <span>A carregar dados para o ponto escolhido…</span>
     </section>
 
-    <main id="mainContent" class="hidden">
-      <section class="card metrics card-elevated" aria-label="Métricas e como usar">
+    <main id="mainContent" class="hidden main-stack">
+      <section class="card metrics card-elevated card-glass" aria-label="Métricas e como usar">
+        <div class="section-eyebrow">Metodologia</div>
         <button type="button" class="accordion-toggle" id="metricsToggle" aria-expanded="false">
           Como interpretamos o índice
         </button>
@@ -94,17 +102,20 @@
         </div>
       </section>
 
-      <section class="card card-elevated highlight-card" id="recommendations" aria-label="Recomendações do dia">
+      <section class="card card-elevated highlight-card card-glow" id="recommendations" aria-label="Recomendações do dia">
+        <div class="section-eyebrow section-eyebrow-accent">Hoje</div>
         <h2 class="card-title">Recomendações do dia</h2>
         <p class="muted small" id="recIntro"></p>
         <div id="recVerdict" class="verdict-box"></div>
+        <div id="indexWeights" class="index-weights hidden" aria-label="Pesos do índice"></div>
         <div id="solunarBlock" class="solunar-block hidden"></div>
         <div id="tideTableBlock" class="tide-table-block hidden"></div>
         <div id="recPeriods" class="period-grid"></div>
         <div id="recWindows" class="windows-row"></div>
       </section>
 
-      <section class="card card-elevated">
+      <section class="card card-elevated card-glass">
+        <div class="section-eyebrow">Resumo</div>
         <div class="day-picker-row">
           <label for="daySelect">Dia</label>
           <select id="daySelect" class="day-select"></select>
@@ -113,7 +124,8 @@
         <div class="moon-row" id="moonRow"></div>
       </section>
 
-      <section class="card card-elevated" aria-label="Lista hora a hora">
+      <section class="card card-elevated card-glass" aria-label="Lista hora a hora">
+        <div class="section-eyebrow">Detalhe</div>
         <h2 class="card-title">Hora a hora — o que esperar</h2>
         <p class="muted small">Cada linha mostra <strong>dados reais da hora</strong> (vento, chuva, ondas, etc.) e explica <strong>porquê</strong> o índice sobe ou desce.</p>
         <div class="hourly-sort-row">
@@ -126,7 +138,8 @@
         <div id="hourlyList" class="hourly-list"></div>
       </section>
 
-      <section class="card chart-card card-elevated" aria-label="Gráfico do dia">
+      <section class="card chart-card card-elevated card-glass" aria-label="Gráfico do dia">
+        <div class="section-eyebrow">Visualização</div>
         <h2 class="card-title">Gráfico do dia</h2>
         <p class="muted small">Barras = índice; linha = nível do mar (só relevante na costa).</p>
         <div class="chart-wrap">
@@ -138,7 +151,8 @@
         </div>
       </section>
 
-      <section class="card card-elevated" aria-label="Próximos dias">
+      <section class="card card-elevated card-glass" aria-label="Próximos dias">
+        <div class="section-eyebrow">Horizonte</div>
         <h2 class="card-title">Próximos dias</h2>
         <div class="forecast-list" id="forecastList"></div>
       </section>
