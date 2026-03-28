@@ -1,0 +1,55 @@
+---
+description: PWA de previsão de pesca — Plataforma Norte (Balneário Rincão); APIs, maré EPAGRI, índice e front estático.
+globs:
+  - "app.js"
+  - "index.html"
+  - "styles.css"
+  - "sw.js"
+  - "manifest.json"
+  - "data/**"
+alwaysApply: false
+---
+
+# Site-de-pesca — regras do projeto
+
+## O que é
+
+PWA estática (HTML + CSS + JS vanilla) focada num **único ponto**: **Plataforma Norte, Balneário Rincão, SC**. Não é multi-local nem backend próprio.
+
+## Arquivos principais
+
+- `index.html` — estrutura, textos legais/informativos (maré EPAGRI vs CHM), drawer de ajuda, registo do service worker.
+- `app.js` — toda a lógica: fetch das APIs, agregação, índice hora a hora, gráfico (Chart.js), UI.
+- `styles.css` — visual e componentes.
+- `sw.js` — cache/offline da PWA.
+- `data/epagri-tides-2026.json` — extremos de maré extraídos da tábua EPAGRI (Siré); o app interpola curva hora a hora entre extremos.
+
+## Coordenadas e contexto marinho
+
+- Lat/lon fixos em `app.js` (`FIXED_LAT`, `FIXED_LON`, `FIXED_PLACE_LABEL`). Alterações só com intenção explícita do utilizador e com revisão de textos que citam o lugar.
+- Contexto **sempre costa/mar** (`cell_selection: 'sea'` no marine, `isInlandContext` não deve voltar a suportar “interior” sem decisão de produto).
+
+## APIs e convenções
+
+- **Open-Meteo**: `marine-api.open-meteo.com` (maré modelo, ondas, SST) e `api.open-meteo.com` (forecast horário e current). Tratar `data.error` nas respostas JSON.
+- **MET Norway** (sol/lua): usar o cabeçalho `User-Agent` já definido em `MET_HEADERS` (obrigatoriedade da API).
+- **Fetch**: manter `cache: 'no-store'` onde já existe, para dados meteorológicos frescos.
+- Links externos: `target="_blank"` com `rel="noopener"` (e padrões de acessibilidade já usados).
+
+## Conteúdo e linguagem
+
+- Interface e mensagens de erro ao utilizador em **português (pt-BR)**.
+- Deixar claro no copy que o índice é **heurístico** (combinação de sinais), não “garantia de peixe”.
+- Manter distinção **tábua EPAGRI local** vs **tábua oficial CHM/Marinha** para navegação — já documentada no drawer e rodapé; não sugerir que o modelo numérico substitui referência oficial.
+
+## Alterações de código
+
+- Preferir mudanças **mínimas** e consistentes com o estilo existente (funções puras onde possível, `state` central, sem frameworks).
+- Qualquer mudança em **pesos do índice** ou fórmula deve refletir-se na explicação do drawer (“Pesos no índice” / “Como funciona”) quando o comportamento visível mudar.
+- Dados de maré em JSON: atualizações anuais ou correções devem manter o **formato** esperado por `app.js` ou ajustar o parser em conjunto.
+
+## Testes manuais úteis
+
+- Carregar a app, verificar bloco “Tempo agora”, lista hora a hora, gráfico e recomendações.
+- Verificar consola por erros de CORS ou 4xx nas APIs.
+- Após alterar `sw.js`, validar atualização de cache (hard refresh / nova versão).
