@@ -1,0 +1,25 @@
+---
+description: Trabalho sempre na branch correta do Git — desenvolver, commitar e empurrar só na feature branch indicada; não misturar com main sem merge.
+alwaysApply: true
+---
+
+# Fluxo por branch (Git)
+
+## Regra principal
+
+- **Toda alteração de código** deve ser feita na **branch de feature** acordada para a tarefa (ex.: `cursor/...`), não diretamente na `main`, salvo instrução explícita em contrário.
+- Antes de editar, confirmar a branch atual (`git branch --show-current` ou equivalente) e alinhar com o que o utilizador ou o PR pedem.
+
+## Push e remoto
+
+- **Push** apenas para a branch em que se está a trabalhar: `git push -u origin <nome-da-branch>`.
+- Não fazer push para outra branch sem pedido explícito do utilizador.
+- O utilizador vê as alterações no GitHub **na mesma branch** onde foram enviadas; a `main` só reflete mudanças após **merge** do PR.
+
+## Commits
+
+- Commits pequenos e descritivos; mensagens em português ou inglês conforme o resto do histórico do repo, mas **claras e completas**.
+
+## Conflito com outras regras
+
+- Se `.cursor/rules/everything-claude-code/` sugerir outro fluxo git, **esta regra de branch + push** prevalece para **este repositório** e para tarefas Cloud Agent com branch fixada.

@@ -1,3 +1,0 @@
-Upstream: https://github.com/BrainGridAI/braingrid
-Ficheiro: cursor/rules/braingrid.mdc (copiado para .cursor/rules/braingrid.mdc)
-Commit de referência: f3f305fc5b788acf5533efe4d25d63fd22c728e1

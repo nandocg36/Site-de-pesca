@@ -12,9 +12,9 @@ alwaysApply: false
 
 # Site-de-pesca — regras do projeto
 
-**BrainGrid:** em todo o trabalho neste repo, seguir `.cursor/rules/braingrid.mdc` (sempre aplicada) para fluxo spec-driven, CLI e IDs REQ-/TASK-.
+**Git:** desenvolver, commitar e fazer push **só na branch da tarefa**; ver `.cursor/rules/git-branch-workflow.mdc`.
 
-Quando houver conflito com regras genéricas em `.cursor/rules/everything-claude-code/`, **prevalecem as secções deste ficheiro** para domínio do produto (APIs, EPAGRI/CHM, copy em pt-BR, stack). Em dúvida entre processo BrainGrid e pormenor técnico desta PWA, o **código e o copy deste repo** seguem este ficheiro; estados de requisitos/tarefas seguem BrainGrid.
+Quando houver conflito com regras genéricas em `.cursor/rules/everything-claude-code/`, **prevalecem as secções deste ficheiro** para domínio do produto (APIs, EPAGRI/CHM, copy em pt-BR, stack).
 
 
 ## O que é
