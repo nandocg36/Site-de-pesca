@@ -12,7 +12,9 @@ alwaysApply: false
 
 # Site-de-pesca — regras do projeto
 
-Quando houver conflito com regras genéricas vendadas em `.cursor/rules/everything-claude-code/`, **prevalecem as secções deste ficheiro** (domínio, APIs, EPAGRI/CHM, copy em pt-BR e stack deste repo).
+**BrainGrid:** em todo o trabalho neste repo, seguir `.cursor/rules/braingrid.mdc` (sempre aplicada) para fluxo spec-driven, CLI e IDs REQ-/TASK-.
+
+Quando houver conflito com regras genéricas em `.cursor/rules/everything-claude-code/`, **prevalecem as secções deste ficheiro** para domínio do produto (APIs, EPAGRI/CHM, copy em pt-BR, stack). Em dúvida entre processo BrainGrid e pormenor técnico desta PWA, o **código e o copy deste repo** seguem este ficheiro; estados de requisitos/tarefas seguem BrainGrid.
 
 
 ## O que é
