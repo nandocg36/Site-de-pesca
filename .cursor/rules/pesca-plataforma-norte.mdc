@@ -12,6 +12,9 @@ alwaysApply: false
 
 # Site-de-pesca — regras do projeto
 
+Quando houver conflito com regras genéricas vendadas em `.cursor/rules/everything-claude-code/`, **prevalecem as secções deste ficheiro** (domínio, APIs, EPAGRI/CHM, copy em pt-BR e stack deste repo).
+
+
 ## O que é
 
 PWA estática (HTML + CSS + JS vanilla) focada num **único ponto**: **Plataforma Norte, Balneário Rincão, SC**. Não é multi-local nem backend próprio.

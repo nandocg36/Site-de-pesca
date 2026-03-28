@@ -1,0 +1,4 @@
+Upstream: https://github.com/affaan-m/everything-claude-code
+Vendored subtree: .cursor/rules/ (this folder)
+Pinned commit: f07797533d86221265e90c077a707e05c70c1bfe
+License: MIT (see https://github.com/affaan-m/everything-claude-code/blob/main/LICENSE)
