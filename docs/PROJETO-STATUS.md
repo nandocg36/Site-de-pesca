@@ -1,7 +1,7 @@
 # 📌 PROJETO — STATUS GERAL
 
 **Repositório:** Site-de-pesca (Pesca — Plataforma Norte)  
-**Última atualização do documento:** 2026-03-29 (GitHub sincronizado com monorepo; Playwright smoke E2E)
+**Última atualização do documento:** 2026-03-29 (regra Cursor: fluxo Bugbot no GitHub)
 
 ---
 
@@ -193,6 +193,7 @@ O agente **não** deve assumir skills de outros stacks (ex.: Flutter, Spring, La
 | `deployment-patterns` | Hospedagem estática, cache, headers de segurança em produção |
 | `create-rule` / `create-skill` | Evolução de regras Cursor ou skills **ligadas** a este repo |
 | `progressive-web-app` | Revisão de manifest, SW, offline, “add to home screen”, boas práticas PWA |
+| **Bugbot (GitHub)** | **Regra de projeto** `.cursor/rules/bugbot-github-workflow.mdc`: em PRs, comentário `bugbot run` (ou `cursor review`) + contexto; depois reconciliar comentários do Bugbot com o código local (`gh pr view` se disponível, ou texto colado pelo utilizador) |
 | `playwright-skill` | Complemento a `e2e-testing` se forem criados fluxos E2E (setup, padrões) |
 | `frontend-design` | Qualidade visual, hierarquia, consistência UI (transponível a CSS/HTML estático) |
 | `systematic-debugging` | Depuração estruturada quando falhas são difíceis de reproduzir |
@@ -217,6 +218,7 @@ O agente **não** deve assumir skills de outros stacks (ex.: Flutter, Spring, La
 
 | Data | Solicitação | O que foi feito | Arquivos |
 |------|-------------|-----------------|----------|
+| 2026-03-29 | Regra: Bugbot obrigatório quando há PR | Nova regra **`.cursor/rules/bugbot-github-workflow.mdc`** (`alwaysApply: true`): modelo de comentário `bugbot run`, fluxo para o agente fornecer texto ao utilizador, puxar feedback (ex. `gh` ou colar) e validar achados. Checklist em `projeto-status-documentacao.mdc`; remissão em `pesca-plataforma-norte.mdc`. | `.cursor/rules/bugbot-github-workflow.mdc`, `.cursor/rules/projeto-status-documentacao.mdc`, `.cursor/rules/pesca-plataforma-norte.mdc`, `docs/PROJETO-STATUS.md` |
 | 2026-03-29 | Remoto GitHub alinhado ao local + E2E | **`origin/main`:** monorepo greenfield (ver `git log`). **`.gitignore`:** `meu-projeto/`, `cpf.json` (pastas experimentais). **Playwright:** `playwright.config.ts`, `e2e/web-smoke.spec.ts`, `npm run test:e2e` (sobe `vite preview` em 4173); `npx playwright install chromium` na primeira máquina. | `.gitignore`, `package.json`, `package-lock.json`, `playwright.config.ts`, `e2e/web-smoke.spec.ts`, `README.md`, `docs/PROJETO-STATUS.md` |
 | 2026-03-29 | Continuar (prioridade: testes sem Supabase) | **`normalizeMemberCheckinCodeInput`** em `lib/memberCheckinCode.ts` (reutilizado em `AdminPresencePage`); **Vitest** em `apps/web` (`vitest.config.ts`, `src/lib/memberCheckinCode.test.ts`); scripts raiz **`test:web`** e **`test:all`** inclui web; README testes. | `apps/web/package.json`, `apps/web/vitest.config.ts`, `apps/web/src/lib/memberCheckinCode.ts`, `apps/web/src/lib/memberCheckinCode.test.ts`, `apps/web/src/pages/admin/AdminPresencePage.tsx`, `package.json`, `package-lock.json`, `README.md`, `docs/PROJETO-STATUS.md` |
 | 2026-03-29 | Continuar Marco 3 (prioridade agente) | **QR na `/carteirinha`:** dependência **`qrcode`**, geração client-side (`toDataURL`), fundo claro para scan; fallback em texto se falhar. **Batida staff:** `trim`, remove `\r`/`\n`, **maiúsculas** antes do RPC (compatível com colar resultado do leitor). | `apps/web/package.json`, `package-lock.json`, `apps/web/src/pages/MemberCheckinCodePage.tsx`, `apps/web/src/pages/admin/AdminPresencePage.tsx`, `apps/web/src/index.css`, `docs/PROJETO-STATUS.md` |

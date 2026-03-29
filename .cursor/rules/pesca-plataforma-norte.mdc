@@ -16,7 +16,7 @@ alwaysApply: false
 
 ## Documentação e fluxo de trabalho
 
-Para qualquer alteração nestes ficheiros: cumprir `.cursor/rules/projeto-status-documentacao.mdc` — **ler** `docs/PROJETO-STATUS.md` **na íntegra**, **pesquisar** no repo e em docs oficiais quando necessário **antes** de implementar, e **atualizar** o PROJETO-STATUS após mudanças relevantes.
+Para qualquer alteração nestes ficheiros: cumprir `.cursor/rules/projeto-status-documentacao.mdc` — **ler** `docs/PROJETO-STATUS.md` **na íntegra**, **pesquisar** no repo e em docs oficiais quando necessário **antes** de implementar, e **atualizar** o PROJETO-STATUS após mudanças relevantes. Entregas em **pull request** no GitHub: seguir também `.cursor/rules/bugbot-github-workflow.mdc` (disparar Bugbot e reconciliar feedback).
 
 ## O que é
 

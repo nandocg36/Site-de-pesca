@@ -1,0 +1,38 @@
+---
+description: Usar o Cursor Bugbot no GitHub quando aplicável; formato do comentário; incorporar feedback no código.
+alwaysApply: true
+---
+
+# Bugbot (GitHub) — obrigatório quando aplicável
+
+## Quando usar
+
+Sempre que existir **pull request** no GitHub neste repositório (ou acabou de ser criado/atualizado) e a integração **Bugbot** estiver ativa no repo ([Cursor Dashboard → Integrations / Bugbot](https://cursor.com/dashboard/integrations)), o agente **deve** integrar o Bugbot no fluxo — **não** substitui revisão humana nem o PROJETO-STATUS, mas é uma revisão automática obrigatória a pedir quando o PR existe.
+
+**Limitação:** o agente no Cursor **não** consegue publicar comentários no GitHub por si. O utilizador (ou CI) tem de colar o texto no PR. Depois o agente **incorpora** o resultado quando o utilizador partilha os comentários do Bugbot ou o número do PR.
+
+## O que fazer (fluxo)
+
+1. **Ao preparar ou fechar uma entrega que vai em PR:** na resposta ao utilizador, incluir um bloco **pronto a colar** no PR (comentário novo), no formato que o Bugbot reconhece:
+   - Linha 1: `bugbot run` **ou** `cursor review` (equivalente).
+   - Linhas seguintes (opcional mas recomendado): contexto curto — stack (`apps/web`, Supabase RPCs, PWA legada), ficheiros ou áreas tocadas, e o que validar (bugs, segurança, tipos, testes).
+2. **Depois do Bugbot comentar no GitHub:** o utilizador cola aqui os comentários / resumo **ou** indica o PR (`#123`). O agente:
+   - **Puxa o resultado** para análise: se existir `gh` no ambiente, pode executar `gh pr view <n> --comments` (ou equivalente) para listar feedback; senão, trabalhar com o texto colado.
+   - Para **cada** achado do Bugbot: verificar no código local se é **válido** (corrigir) ou **falso positivo** (explicar porquê, sem alterar código desnecessariamente).
+   - Atualizar `docs/PROJETO-STATUS.md` se houver bug real corrigido ou decisão nova.
+3. **Sem PR aberto:** não há diff para o Bugbot analisar; o agente indica que é preciso abrir um PR primeiro, ou usa revisão local (testes, linter, `security-review` skill).
+
+## Modelo de comentário (copiar para o PR)
+
+```text
+bugbot run
+
+Repo: monorepo Site-de-pesca — @pesca/web (React/Vite/TS), packages/fishing-core, supabase/migrations, PWA legada na raiz.
+Validar: erros lógicos, segurança (XSS, dados sensíveis, RPC/Supabase), TypeScript/React, coerência com testes (Vitest + Playwright smoke).
+Alterações deste PR: <resumo em uma frase pelo agente ou pelo autor>.
+```
+
+## Coerência com outras regras
+
+- Mantém-se **prioridade** de `projeto-status-documentacao.mdc` e leitura de `docs/PROJETO-STATUS.md`.
+- Bugbot **complementa** skills (`security-review`, `e2e-testing`, etc.); não as substitui antes de implementar código novo.

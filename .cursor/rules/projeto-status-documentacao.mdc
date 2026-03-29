@@ -33,6 +33,7 @@ Antes de implementar ou alterar comportamento relevante:
 ## Antes da resposta final (checklist)
 
 - Regras deste repo + `PROJETO-STATUS` consideradas.
+- **Bugbot (GitHub):** quando houver PR relevante, cumprir `.cursor/rules/bugbot-github-workflow.mdc` — fornecer comentário `bugbot run` pronto a colar e, quando o utilizador trouxer o feedback do Bugbot, reconciliar achados com o código.
 - Pesquisa feita quando a implementação dependia de APIs, padrões do repo ou skills.
 - Skills lidas se aplicável.
 - `docs/PROJETO-STATUS.md` **sempre atualizado** quando houve mudança relevante (código, decisão, bug, correção ou pendência nova/resolvida) — **sem esperar pedido explícito**.
