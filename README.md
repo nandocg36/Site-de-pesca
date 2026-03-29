@@ -14,9 +14,9 @@ npm run dev
 
 Abre Vite em `http://127.0.0.1:5173` (app `@pesca/web`). Variáveis: copie `apps/web/.env.example` → `apps/web/.env` com URL e anon key do Supabase.
 
-**Supabase:** aplicar `supabase/migrations/20260329120000_marco1_foundation.sql` (ou `supabase db reset` em local com CLI). Seed opcional: `supabase/seed.sql` — token de dev `marco1-dev-token`. Ver `supabase/README.md`.
+**Supabase:** aplicar as migrações em `supabase/migrations/` por ordem de timestamp (Marco 1 → 2 → 3 → **3b** `20260329300000_marco3b_dues.sql`), ou `supabase db reset` em local com CLI. Seed opcional: `supabase/seed.sql` — tokens de dev `marco1-dev-token`, `marco3-collab-dev-token`; org demo com `presence_qr` e **`dues`**. Ver `supabase/README.md`.
 
-**Fluxos na app:** `/` (hub Marco 1), `/instalar-pwa`, `/convite?token=…` (RPC `redeem_invite_token`).
+**Fluxos na app:** `/` (hub), `/instalar-pwa`, `/convite?token=…`, `/feed`, `/carteirinha`, **`/mensalidade`** (sócio), **`/admin/mensalidade`** (staff).
 
 ```bash
 npm run build    # produção → apps/web/dist

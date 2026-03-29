@@ -11,6 +11,8 @@ export function AdminLayout() {
           {' · '}
           <Link to="/admin/presenca">Presença</Link>
           {' · '}
+          <Link to="/admin/mensalidade">Mensalidade</Link>
+          {' · '}
           <Link to="/feed">← Feed sócio</Link>
         </nav>
       </header>

@@ -5,12 +5,13 @@ insert into public.organizations (id, name, feature_flags)
 values (
   'a0000000-0000-4000-8000-000000000001',
   'Plataforma Norte (dev)',
-  '{"presence_qr": true}'::jsonb
+  '{"presence_qr": true, "dues": true}'::jsonb
 )
 on conflict (id) do nothing;
 
 update public.organizations
-set feature_flags = coalesce(feature_flags, '{}'::jsonb) || '{"presence_qr": true}'::jsonb
+set feature_flags = coalesce(feature_flags, '{}'::jsonb)
+  || '{"presence_qr": true, "dues": true}'::jsonb
 where id = 'a0000000-0000-4000-8000-000000000001';
 
 insert into public.profiles (id, organization_id, role_id, display_name)
@@ -21,6 +22,14 @@ values (
   'Sócio demonstração'
 )
 on conflict (id) do nothing;
+
+-- Marco 3b — plano de mensalidade no titular demo (valor/dia; pagamento opcional no mês corrente)
+update public.profiles
+set
+  dues_monthly_amount_cents = 15000,
+  dues_due_day = 10,
+  updated_at = now()
+where id = 'b0000000-0000-4000-8000-000000000002';
 
 insert into public.invite_tokens (organization_id, profile_id, token_hash, expires_at, max_uses)
 values (
@@ -51,6 +60,26 @@ values (
   null
 )
 on conflict (token_hash) do nothing;
+
+-- Marco 3b — pagamento demo do mês corrente (registado pelo colaborador)
+insert into public.membership_dues_payments (
+  organization_id,
+  billed_profile_id,
+  amount_cents,
+  covers_month,
+  recorded_by_profile_id
+)
+select
+  'a0000000-0000-4000-8000-000000000001',
+  'b0000000-0000-4000-8000-000000000002',
+  15000,
+  date_trunc('month', (timezone('America/Sao_Paulo', now()))::date)::date,
+  'd0000000-0000-4000-8000-000000000004'
+where not exists (
+  select 1 from public.membership_dues_payments m
+  where m.billed_profile_id = 'b0000000-0000-4000-8000-000000000002'
+    and m.covers_month = date_trunc('month', (timezone('America/Sao_Paulo', now()))::date)::date
+);
 
 -- Marco 2 — segundo perfil + amizade aceite + posts demo (visibilidade)
 insert into public.profiles (id, organization_id, role_id, display_name)

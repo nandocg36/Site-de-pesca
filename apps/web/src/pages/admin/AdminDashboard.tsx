@@ -15,6 +15,9 @@ export function AdminDashboard() {
       <p>
         <Link to="/admin/presenca">Abrir presença →</Link>
       </p>
+      <p>
+        <Link to="/admin/mensalidade">Mensalidade (Marco 3b) →</Link>
+      </p>
     </div>
   );
 }
