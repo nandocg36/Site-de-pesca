@@ -53,6 +53,8 @@ npm test           # legado: tests/*.test.js (maré + social)
 npm run test:core  # packages/fishing-core (maré TS)
 npm run test:web   # apps/web (Vitest: ex. normalização código presença)
 npm run test:all   # os três
+npx playwright install chromium   # primeira vez: browsers E2E
+npm run test:e2e   # Playwright: smoke em preview (build + /, /convite, PWA, carteirinha)
 ```
 
 ## Documentação do projeto

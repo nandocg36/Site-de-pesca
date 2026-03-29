@@ -1,7 +1,7 @@
 # 📌 PROJETO — STATUS GERAL
 
 **Repositório:** Site-de-pesca (Pesca — Plataforma Norte)  
-**Última atualização do documento:** 2026-03-29 (apps/web: Vitest + `normalizeMemberCheckinCodeInput` testável)
+**Última atualização do documento:** 2026-03-29 (GitHub sincronizado com monorepo; Playwright smoke E2E)
 
 ---
 
@@ -80,6 +80,7 @@ PWA **estática** (HTML + CSS + JavaScript vanilla) focada na **Plataforma Norte
 | `supabase/migrations/` | Marco 1–2 como antes. Marco 3: `organizations.feature_flags`, `profiles.checkin_code`, `presence_events`, RPCs `marco3_member_ensure_checkin_code`, `marco3_staff_register_presence`, `marco3_staff_presence_list` |
 | `supabase/seed.sql` | Dev: org com `presence_qr`; sócio **`marco1-dev-token`**; colaborador **`marco3-collab-dev-token`**; Marco 2 social demo |
 | `vite.legacy.config.js` | Vite na raiz para servir PWA vanilla legada (porta 5174) |
+| `playwright.config.ts` / `e2e/` | Smoke E2E da `@pesca/web` via `vite preview` (porta 4173); `npm run test:e2e` |
 
 ---
 
@@ -216,6 +217,7 @@ O agente **não** deve assumir skills de outros stacks (ex.: Flutter, Spring, La
 
 | Data | Solicitação | O que foi feito | Arquivos |
 |------|-------------|-----------------|----------|
+| 2026-03-29 | Remoto GitHub alinhado ao local + E2E | **`origin/main`:** monorepo greenfield (ver `git log`). **`.gitignore`:** `meu-projeto/`, `cpf.json` (pastas experimentais). **Playwright:** `playwright.config.ts`, `e2e/web-smoke.spec.ts`, `npm run test:e2e` (sobe `vite preview` em 4173); `npx playwright install chromium` na primeira máquina. | `.gitignore`, `package.json`, `package-lock.json`, `playwright.config.ts`, `e2e/web-smoke.spec.ts`, `README.md`, `docs/PROJETO-STATUS.md` |
 | 2026-03-29 | Continuar (prioridade: testes sem Supabase) | **`normalizeMemberCheckinCodeInput`** em `lib/memberCheckinCode.ts` (reutilizado em `AdminPresencePage`); **Vitest** em `apps/web` (`vitest.config.ts`, `src/lib/memberCheckinCode.test.ts`); scripts raiz **`test:web`** e **`test:all`** inclui web; README testes. | `apps/web/package.json`, `apps/web/vitest.config.ts`, `apps/web/src/lib/memberCheckinCode.ts`, `apps/web/src/lib/memberCheckinCode.test.ts`, `apps/web/src/pages/admin/AdminPresencePage.tsx`, `package.json`, `package-lock.json`, `README.md`, `docs/PROJETO-STATUS.md` |
 | 2026-03-29 | Continuar Marco 3 (prioridade agente) | **QR na `/carteirinha`:** dependência **`qrcode`**, geração client-side (`toDataURL`), fundo claro para scan; fallback em texto se falhar. **Batida staff:** `trim`, remove `\r`/`\n`, **maiúsculas** antes do RPC (compatível com colar resultado do leitor). | `apps/web/package.json`, `package-lock.json`, `apps/web/src/pages/MemberCheckinCodePage.tsx`, `apps/web/src/pages/admin/AdminPresencePage.tsx`, `apps/web/src/index.css`, `docs/PROJETO-STATUS.md` |
 | 2026-03-29 | Marco 3 (plano: staff + presença) | **Flags** `organizations.feature_flags`; tabela **`presence_events`**; colunas **`profiles.checkin_code`**; RPCs **`marco3_*`** (código sócio, batida staff, lista “presentes”). **UI:** rotas aninhadas `/admin` + `StaffRoute`, `AdminLayout`, `AdminPresencePage`, `MemberCheckinCodePage`; links no feed; convite dev **`marco3-collab-dev-token`**. **Remoto:** MCP **`execute_sql`** (blocos DDL + funções) + atualização org + perfil colaborador + convite. **Repo:** `supabase/migrations/20260329200000_marco3_staff_presence.sql`, `seed.sql`, `session.ts` (`isStaffSession` / `isMemberSession`), `package.json` descrição. | `supabase/migrations/20260329200000_marco3_staff_presence.sql`, `supabase/seed.sql`, `apps/web/src/App.tsx`, `apps/web/src/routes/StaffRoute.tsx`, `apps/web/src/pages/admin/*`, `apps/web/src/pages/MemberCheckinCodePage.tsx`, `apps/web/src/pages/FeedPage.tsx`, `apps/web/src/pages/InvitePage.tsx`, `apps/web/src/pages/HomeMarco1.tsx`, `apps/web/src/lib/session.ts`, `apps/web/src/index.css`, `package.json`, `docs/PROJETO-STATUS.md` |
@@ -280,7 +282,7 @@ O agente **não** deve assumir skills de outros stacks (ex.: Flutter, Spring, La
 - **Opcional:** mais testes (E2E Playwright) para fluxo de carga e `loadFixedLocation`; comando já documentado: `npm test` para maré.
 - **Opcional:** alinhar regra global do utilizador (`global-projeto-status.mdc`) se quiser menção explícita a “projetos estáticos” — hoje a matriz neste ficheiro já desambigua o Site-de-pesca.
 - **Opcional (skills):** o repositório antigravity tem **~1301** pastas com nomes que ainda não existem em `~/.cursor/skills`. Não foram instaladas em massa; para mais cobertura, usar `npx antigravity-awesome-skills --cursor` ou escolher bundles no próprio repo. Reverter substituições: restaurar pastas `*.bak-*` / `SKILL.md.bak-*` criadas em 2026-03-28.
-- **Pós–Marco 3 (produto):** UI “Instagram” mais rica (mídia, composer); moderar comentários; rate limit nas RPCs; **E2E** (Playwright) convite → feed → carteirinha → batida staff; modo **invisível** para pares; painel **`apps/admin`** separado se o deploy staff for distinto.
+- **Pós–Marco 3 (produto):** UI “Instagram” mais rica (mídia, composer); moderar comentários; rate limit nas RPCs; **E2E** alargado (convite real → feed → carteirinha → batida staff com Supabase de teste); modo **invisível** para pares; painel **`apps/admin`** separado se o deploy staff for distinto. **Já há:** smoke Playwright em rotas públicas (`npm run test:e2e`).
 - **Marco 3b (plano):** mensalidades, batidas avançadas, logs, **PSP** — ver secção “Mensalidade e pagamentos” no plano Cursor; PSP ainda por decidir (BR).
 - **Auth sócio:** evoluir de `profile_id` + `device_id` nas RPCs para **Supabase Auth** (ou JWT próprio) e **RLS** com `auth.uid()` mapeado a `profiles`; manter RPCs como fachada opcional.
 - **Opcional:** criar `docs/PLANO-PRODUTO-FUTURO.md` com cópia do plano Cursor para repositórios sem `.cursor/plans` partilhado.

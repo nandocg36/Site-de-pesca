@@ -9,3 +9,8 @@ packages/fishing-core/dist
 # Pastas / ficheiros locais experimentais (não fazem parte do monorepo)
 meu-projeto/
 cpf.json
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/

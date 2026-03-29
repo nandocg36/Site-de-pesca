@@ -16,9 +16,12 @@
     "test:core": "npm run test -w @pesca/fishing-core",
     "test:web": "npm run test -w @pesca/web",
     "test:all": "npm run test && npm run test:core && npm run test:web",
-    "test:watch": "vitest -c vitest.config.js"
+    "test:watch": "vitest -c vitest.config.js",
+    "e2e:serve": "npm run build -w @pesca/web && npm run preview -w @pesca/web -- --host 127.0.0.1 --port 4173",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "vite": "^6.2.2",
     "vitest": "^3.2.4"
   },
