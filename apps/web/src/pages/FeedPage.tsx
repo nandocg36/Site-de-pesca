@@ -175,6 +175,8 @@ export function FeedPage() {
             <>
               <Link to="/carteirinha">Código de presença</Link>
               {' · '}
+              <Link to="/mensalidade">Mensalidade</Link>
+              {' · '}
             </>
           ) : null}
           {isStaffSession(session) ? (

@@ -22,4 +22,10 @@ test.describe('@pesca/web smoke (preview)', () => {
     await page.goto('/carteirinha');
     await expect(page.getByText(/Inicia sessão|convite/i).first()).toBeVisible();
   });
+
+  test('mensalidade pede sessão sócio sem convite', async ({ page }) => {
+    await page.goto('/mensalidade');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Mensalidade');
+    await expect(page.getByText(/sócios com sessão|convite/i).first()).toBeVisible();
+  });
 });
