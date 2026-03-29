@@ -3,6 +3,10 @@
  * Open-Meteo + MET Norway.
  */
 
+import { buildEffectiveSeaLevels } from './js/tide-epagri.js';
+import { escapeHtml } from './js/utils/escapeHtml.js';
+import { initSocialApp } from './js/social/bootstrap.js';
+
 const MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const MET_SUN = 'https://api.met.no/weatherapi/sunrise/3.0/sun';
@@ -20,9 +24,17 @@ const MET_HEADERS = {
   Accept: 'application/json',
 };
 
+/** Consola extra para depuração local: abra com `?debug=1` na URL. */
+const PESCA_DEBUG = new URLSearchParams(window.location.search).get('debug') === '1';
+if (PESCA_DEBUG) {
+  console.info('[Pesca] Modo debug (?debug=1): logs extra na consola; terminal do servidor mostra pedidos HTTP.');
+}
+
 const state = {
   chart: null,
   scoreDetails: null,
+  _chartDetailsWired: false,
+  _metricsRailWired: false,
   /** @type {number | null} */
   liveWeatherTimer: null,
   /** @type {{ aligned: object, scores: number[], scoreDetails: object[], dayData: object[], astroByDay: Map, forecast: object, isInland: boolean, placeLabel: string, tz: string, lat: number, lon: number } | null} */
@@ -44,16 +56,60 @@ function hideError() {
   $('errorBox').classList.add('hidden');
 }
 
+function clearLiveRefreshWarning() {
+  $('liveWeatherMeta')?.querySelector('.live-refresh-warn')?.remove();
+}
+
+function showLiveRefreshWarning(msg) {
+  const metaEl = $('liveWeatherMeta');
+  if (!metaEl || metaEl.querySelector('.live-refresh-warn')) return;
+  const span = document.createElement('span');
+  span.className = 'live-refresh-warn';
+  span.setAttribute('role', 'alert');
+  span.textContent = msg;
+  metaEl.appendChild(span);
+}
+
 /** Sempre costa / célula mar — app exclusivo da plataforma. */
 function isInlandContext() {
   return false;
 }
 
+function apiLabelForUrl(url) {
+  if (url.includes('marine-api.open-meteo')) return 'dados marinhos (Open-Meteo)';
+  if (url.includes('api.open-meteo.com')) return 'previsão do tempo (Open-Meteo)';
+  if (url.includes('met.no')) return 'sol e lua (MET Norway)';
+  return 'serviço externo';
+}
+
 async function fetchJson(url, init = {}) {
-  const res = await fetch(url, { ...init, cache: 'no-store' });
-  if (!res.ok) throw new Error(`A solicitação falhou (${res.status})`);
-  const data = await res.json();
-  if (data.error) throw new Error(data.reason || 'Erro na API');
+  const label = apiLabelForUrl(url);
+  let res;
+  try {
+    res = await fetch(url, { ...init, cache: 'no-store' });
+  } catch (e) {
+    if (PESCA_DEBUG) console.warn('[Pesca] fetch rede', url, e);
+    const netMsg = e instanceof TypeError && String(e.message || '').toLowerCase().includes('fetch')
+      ? 'Sem ligação ou pedido bloqueado.'
+      : (e instanceof Error ? e.message : String(e));
+    throw new Error(`Não foi possível contactar ${label}. ${netMsg} Verifique a internet, VPN ou extensões (bloqueador).`);
+  }
+  if (!res.ok) {
+    if (PESCA_DEBUG) console.warn('[Pesca] fetchJson HTTP', res.status, url);
+    throw new Error(
+      `Não foi possível carregar ${label} (código ${res.status}). Tente mais tarde ou outra rede.`
+    );
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    if (PESCA_DEBUG) console.warn('[Pesca] JSON inválido', url, e);
+    throw new Error(
+      `Resposta inválida de ${label} (não é JSON). Pode ser bloqueador, proxy ou página de erro da rede.`
+    );
+  }
+  if (data.error) throw new Error(data.reason || `Erro reportado por ${label}.`);
   return data;
 }
 
@@ -151,13 +207,30 @@ async function fetchMetSunMoon(lat, lon, dateIso, offsetStr) {
 
 async function loadAstroSeries(lat, lon, dayKeys, offsetStr) {
   const unique = [...new Set(dayKeys)].sort();
-  const entries = await Promise.all(
+  const settled = await Promise.allSettled(
     unique.map(async (d) => {
       const { sun, moon } = await fetchMetSunMoon(lat, lon, d, offsetStr);
       return [d, parseAstroDay(sun, moon)];
     })
   );
-  return new Map(entries);
+  const map = new Map();
+  let failures = 0;
+  settled.forEach((result, i) => {
+    const d = unique[i];
+    if (result.status === 'fulfilled') {
+      map.set(result.value[0], result.value[1]);
+    } else {
+      failures += 1;
+      map.set(d, parseAstroDay(null, null));
+      if (PESCA_DEBUG) console.warn('[Pesca] MET Norway falhou para o dia', d, result.reason);
+    }
+  });
+  if (failures > 0) {
+    console.warn(
+      `[Pesca] Sol/lua: ${failures} dia(s) sem dados MET Norway — índice segue com maré e tempo; lua/solunar ficam neutros nesses dias.`
+    );
+  }
+  return map;
 }
 
 function parseTimeMaybe(s) {
@@ -183,96 +256,21 @@ function parseAstroDay(sunFeature, moonFeature) {
   };
 }
 
-function addDaysIso(isoDate, n) {
-  const [Y, M, D] = isoDate.split('-').map(Number);
-  const dt = new Date(Y, M - 1, D + n);
-  const y = dt.getFullYear();
-  const m = String(dt.getMonth() + 1).padStart(2, '0');
-  const d = String(dt.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-/** Curva contínua (linear entre extremos) para interpolar nível hora a hora. */
-function buildEpagriCurveForDay(dateKey, byDate) {
-  if (!byDate || typeof byDate !== 'object') return null;
-  const cur = byDate[dateKey];
-  if (!cur || cur.length < 2) return null;
-  const prevKey = addDaysIso(dateKey, -1);
-  const nextKey = addDaysIso(dateKey, 1);
-  const prev = byDate[prevKey];
-  const next = byDate[nextKey];
-  const pts = [];
-  const pushDay = (dk, e) => {
-    const ms = new Date(`${dk}T${e.t}:00`).getTime();
-    if (Number.isFinite(ms)) pts.push({ ms, h: e.h_m });
-  };
-  if (prev?.length) {
-    const sortedP = [...prev].sort((a, b) => a.t.localeCompare(b.t));
-    pushDay(prevKey, sortedP[sortedP.length - 1]);
-  }
-  for (const e of [...cur].sort((a, b) => a.t.localeCompare(b.t))) pushDay(dateKey, e);
-  if (next?.length) {
-    const sortedN = [...next].sort((a, b) => a.t.localeCompare(b.t));
-    pushDay(nextKey, sortedN[0]);
-  }
-  pts.sort((a, b) => a.ms - b.ms);
-  return pts.length >= 2 ? pts : null;
-}
-
-function interpolateAlongPts(pts, tMs) {
-  if (!pts || pts.length < 2) return null;
-  if (tMs <= pts[0].ms) {
-    const a = pts[0];
-    const b = pts[1];
-    const span = b.ms - a.ms || 1;
-    return a.h + ((tMs - a.ms) / span) * (b.h - a.h);
-  }
-  if (tMs >= pts[pts.length - 1].ms) {
-    const a = pts[pts.length - 2];
-    const b = pts[pts.length - 1];
-    const span = b.ms - a.ms || 1;
-    return a.h + ((tMs - a.ms) / span) * (b.h - a.h);
-  }
-  let i = 0;
-  while (i < pts.length - 1 && pts[i + 1].ms < tMs) i += 1;
-  const a = pts[i];
-  const b = pts[i + 1];
-  const span = b.ms - a.ms || 1;
-  return a.h + ((tMs - a.ms) / span) * (b.h - a.h);
-}
-
-/** Nível hora a hora: extremos EPAGRI interpolados; fallback no modelo Open-Meteo. */
-function buildEffectiveSeaLevels(times, modelSea, byDate) {
-  if (!byDate || typeof byDate !== 'object') return modelSea.slice();
-  const cache = new Map();
-  const out = [];
-  for (let i = 0; i < times.length; i++) {
-    const dk = times[i].slice(0, 10);
-    if (!cache.has(dk)) {
-      cache.set(dk, buildEpagriCurveForDay(dk, byDate));
-    }
-    const curve = cache.get(dk);
-    const tMs = new Date(times[i]).getTime();
-    if (curve && Number.isFinite(tMs)) {
-      const h = interpolateAlongPts(curve, tMs);
-      if (h != null && Number.isFinite(h)) {
-        out.push(h);
-        continue;
-      }
-    }
-    out.push(modelSea[i]);
-  }
-  return out;
-}
-
 async function loadEpagriTideTable() {
   try {
     const r = await fetch(EPAGRI_TIDES_URL, { cache: 'no-store' });
-    if (!r.ok) return null;
+    if (!r.ok) {
+      if (PESCA_DEBUG) console.warn('[Pesca] EPAGRI: HTTP', r.status, EPAGRI_TIDES_URL);
+      return null;
+    }
     const j = await r.json();
-    if (j && j.extremesByDate && typeof j.extremesByDate === 'object') return j;
-  } catch (_) {
-    /* offline / 404 */
+    if (j && j.extremesByDate && typeof j.extremesByDate === 'object') {
+      if (PESCA_DEBUG) console.info('[Pesca] EPAGRI: JSON ok', j.year, j.location || '');
+      return j;
+    }
+    if (PESCA_DEBUG) console.warn('[Pesca] EPAGRI: formato inesperado (sem extremesByDate)');
+  } catch (e) {
+    if (PESCA_DEBUG) console.warn('[Pesca] EPAGRI: exceção ao carregar', e);
   }
   return null;
 }
@@ -918,6 +916,110 @@ function weatherCodeLabel(code) {
   return map[c] || `Condição (${c})`;
 }
 
+/** Emoji simples para o hero (acessível com texto ao lado). */
+function weatherCodeEmoji(code) {
+  if (code == null || !Number.isFinite(code)) return '🌤️';
+  const c = Math.round(code);
+  if (c === 0 || c === 1) return '☀️';
+  if (c === 2 || c === 3) return '⛅';
+  if (c === 45 || c === 48) return '🌫️';
+  if (c >= 51 && c <= 57) return '🌦️';
+  if (c >= 61 && c <= 67) return '🌧️';
+  if (c >= 71 && c <= 77) return '❄️';
+  if (c >= 80 && c <= 86) return '⛈️';
+  if (c >= 95) return '⚡';
+  return '🌤️';
+}
+
+function formatLongDatePt(dateKey) {
+  try {
+    const d = new Date(`${dateKey}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return dateKey;
+    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  } catch (_) {
+    return dateKey;
+  }
+}
+
+/** Índice na série alinhada: hoje → hora mais próxima do agora; outro dia → ~14h local. */
+function pickRepresentativeHourGi(dateKey, times, tz) {
+  const dayIdx = sliceDayIndices(times, dateKey);
+  if (!dayIdx.length) return null;
+  const today = todayDateKeyInTimezone(tz);
+  if (dateKey === today) {
+    const now = Date.now();
+    let best = dayIdx[0];
+    let bestDiff = Infinity;
+    for (const gi of dayIdx) {
+      const t = new Date(times[gi]).getTime();
+      if (Number.isNaN(t)) continue;
+      const diff = Math.abs(t - now);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = gi;
+      }
+    }
+    return best;
+  }
+  let best = dayIdx[0];
+  let bestDiff = 24;
+  for (const gi of dayIdx) {
+    const h = hourFromTimeStr(times[gi]);
+    const diff = Math.abs(h - 14);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = gi;
+    }
+  }
+  return best;
+}
+
+function renderHeroStrip(dateKey, aligned, forecast, tz) {
+  const dateEl = $('heroDateLong');
+  const iconEl = $('heroWeatherIcon');
+  const textEl = $('heroWeatherText');
+  const tempEl = $('heroTempLine');
+  const srcEl = $('heroWeatherSource');
+  if (!dateEl || !iconEl || !textEl) return;
+
+  dateEl.textContent = formatLongDatePt(dateKey);
+  const today = todayDateKeyInTimezone(tz);
+  const isToday = dateKey === today;
+
+  let code = null;
+  let temp = null;
+  let sourceLine = '';
+
+  if (isToday && forecast?.current) {
+    const cur = forecast.current;
+    code = cur.weather_code ?? null;
+    temp = cur.temperature_2m ?? null;
+    sourceLine = 'Tempo ao vivo: leitura atual do modelo Open-Meteo (atualiza com “Atualizar” ou sozinha de vez em quando).';
+  } else if (aligned?.times?.length && aligned.weatherCode) {
+    const gi = pickRepresentativeHourGi(dateKey, aligned.times, tz);
+    if (gi != null) {
+      code = aligned.weatherCode[gi];
+      temp = aligned.temp?.[gi] ?? null;
+      sourceLine = `Previsão para este dia (~${formatHourLabel(aligned.times[gi])}): modelo Open-Meteo.`;
+    }
+  }
+
+  iconEl.textContent = weatherCodeEmoji(code);
+  textEl.textContent = weatherCodeLabel(code);
+  if (tempEl) {
+    tempEl.textContent =
+      temp != null && Number.isFinite(temp) ? ` ${temp.toFixed(1)} °C` : '';
+  }
+  if (srcEl) srcEl.textContent = sourceLine;
+}
+
+/** “Atividade dos peixes” = linguagem simples sobre o mesmo índice horário (estimativa). */
+function fishActivityFromScore(score) {
+  if (score >= 62) return { label: 'Alta', cls: 'fish-act-high' };
+  if (score >= 45) return { label: 'Média', cls: 'fish-act-mid' };
+  return { label: 'Baixa', cls: 'fish-act-low' };
+}
+
 function isThunderWeatherCode(c) {
   return c === 95 || c === 96 || c === 99;
 }
@@ -1057,7 +1159,7 @@ function renderLiveWeatherPanel(forecast, aligned) {
       topLevel === 'critical' ? 'live-alert-critical' : topLevel === 'warning' ? 'live-alert-warn' : 'live-alert-watch';
     alertsEl.innerHTML = `<div class="live-alert ${cls}" role="status"><strong>Aviso do modelo</strong> (não é alerta oficial):<ul class="live-alert-list">${items
       .slice(0, 8)
-      .map((it) => `<li>${it.text}</li>`)
+      .map((it) => `<li>${escapeHtml(it.text)}</li>`)
       .join('')}</ul>${
       items.length > 8 ? `<p class="muted small">+${items.length - 8} outros indícios nas próximas horas.</p>` : ''
     }</div>`;
@@ -1095,7 +1197,7 @@ function renderLiveWeatherPanel(forecast, aligned) {
   gridEl.innerHTML = cells
     .map(
       ([k, v]) =>
-        `<div class="live-weather-cell"><span class="live-weather-k">${k}</span><span class="live-weather-v">${v}</span></div>`
+        `<div class="live-weather-cell"><span class="live-weather-k">${escapeHtml(k)}</span><span class="live-weather-v">${escapeHtml(v)}</span></div>`
     )
     .join('');
 
@@ -1109,6 +1211,7 @@ async function refreshLiveWeatherSnapshot() {
   const b = state.bundle;
   if (!b || b.lat == null || b.lon == null || !b.tz || !b.marine) return;
   try {
+    clearLiveRefreshWarning();
     const forecast = await loadForecast(b.lat, b.lon, b.tz);
     const aligned = alignByTime(b.marine, forecast);
     const epMap = b.epagriExtremesByDate;
@@ -1138,16 +1241,20 @@ async function refreshLiveWeatherSnapshot() {
     if (dateKey) {
       const dayRow = b.dayData.find((d) => d.date === dateKey);
       const dayAvg = dayRow?.avgScore ?? 0;
-      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland, b.astroByDay, aligned);
+      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland, b.astroByDay, aligned, scoreDetails);
       renderSummary(b.dayData, { lat: b.lat, lon: b.lon, timezone: b.tz }, dateKey, b.astroByDay, b.marineMeta);
       const { labels, scores: sc, seaNorm } = sliceDay(aligned.times, scores, aligned.sea, dateKey);
       updateChart(labels, sc, seaNorm);
-      renderHourlyList(dateKey, aligned.times, scores, scoreDetails, inland);
+      renderHeroStrip(dateKey, aligned, forecast, b.tz);
+      rerenderAllHourlyLists(dateKey, aligned.times, scores, scoreDetails, inland);
     }
     renderForecastList(b.dayData);
     renderLiveWeatherPanel(forecast, aligned);
-  } catch (_) {
-    /* mantém último estado */
+  } catch (e) {
+    console.error('[Pesca] refreshLiveWeatherSnapshot', e);
+    showLiveRefreshWarning(
+      'Não foi possível atualizar os dados agora. Toque em Atualizar ou recarregue a página.'
+    );
   }
 }
 
@@ -1331,12 +1438,11 @@ function formatMetricHour(detail, isInland) {
   return parts.length ? parts.join(' · ') : '—';
 }
 
-function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
-  const el = $('hourlyList');
-  if (!el) return;
+function renderInteractiveHourly(container, dateKey, times, scores, scoreDetails, isInland) {
+  if (!container) return;
   const dayIdx = sliceDayIndices(times, dateKey);
   if (!dayIdx.length) {
-    el.innerHTML = '';
+    container.replaceChildren();
     return;
   }
 
@@ -1353,30 +1459,52 @@ function renderHourlyList(dateKey, times, scores, scoreDetails, isInland) {
   }
 
   const bestScore = Math.max(...rows.map((r) => r.score));
-  el.innerHTML = '';
+  container.replaceChildren();
+
   for (const r of rows) {
     const q = hourQualityWords(r.score);
+    const fish = fishActivityFromScore(r.score);
     const expl = buildHourExplanations(r.detail || {}, isInland);
     const isBest = r.score === bestScore && bestScore > 0;
     const metricsLine = formatMetricHour(r.detail || {}, isInland);
-    const row = document.createElement('article');
-    row.className = `hourly-row ${q.cls}`;
-    row.setAttribute('aria-label', `Hora ${formatHourLabel(r.time)}, índice ${r.score}`);
-    const badgeExtra = isBest && sortMode === 'best' ? ' · melhor hora do dia' : '';
-    row.innerHTML = `
-      <div class="hourly-time">${formatHourLabel(r.time)}</div>
-      <div class="hourly-meta">
+    const badgeExtra = isBest && sortMode === 'best' ? ' · melhor' : '';
+
+    const det = document.createElement('details');
+    det.className = `hourly-acc ${q.cls}`;
+    det.setAttribute('aria-label', `Hora ${formatHourLabel(r.time)}`);
+
+    const summ = document.createElement('summary');
+    summ.className = 'hourly-acc-summary';
+    summ.innerHTML = `
+      <span class="hourly-acc-time">${escapeHtml(formatHourLabel(r.time))}</span>
+      <span class="hourly-acc-badges">
         <span class="hourly-badge ${q.badge}">${q.label}</span>
-        <span class="hourly-score">Índice ${r.score}/100${badgeExtra}</span>
-      </div>
-      <div class="hourly-metrics muted small">${metricsLine}</div>
-      <div class="hourly-why">
-        <strong>Por quê:</strong>
-        <ul>${expl.map((x) => `<li>${x}</li>`).join('')}</ul>
+        <span class="fish-pill ${fish.cls}">Peixe: ${fish.label}</span>
+      </span>
+      <span class="hourly-acc-score">Índice ${r.score}/100${escapeHtml(badgeExtra)}</span>
+      <span class="hourly-acc-chevron" aria-hidden="true"></span>
+    `;
+
+    const body = document.createElement('div');
+    body.className = 'hourly-acc-body';
+    body.innerHTML = `
+      <p class="hourly-acc-metrics muted small">${escapeHtml(metricsLine)}</p>
+      <p class="hourly-acc-fish-expl"><strong>Atividade dos peixes (estim.):</strong> ${fish.label} — combina maré, lua, vento e tempo no modelo (não é picada garantida).</p>
+      <div class="hourly-why hourly-why-acc">
+        <strong>Por que nesta hora:</strong>
+        <ul>${expl.map((x) => `<li>${escapeHtml(htmlToPlain(x))}</li>`).join('')}</ul>
       </div>
     `;
-    el.appendChild(row);
+
+    det.appendChild(summ);
+    det.appendChild(body);
+    container.appendChild(det);
   }
+}
+
+function rerenderAllHourlyLists(dateKey, times, scores, scoreDetails, isInland) {
+  renderInteractiveHourly($('hourlyListInline'), dateKey, times, scores, scoreDetails, isInland);
+  renderInteractiveHourly($('metricsHourlyList'), dateKey, times, scores, scoreDetails, isInland);
 }
 
 const PERIOD_DEFS = [
@@ -1391,6 +1519,120 @@ function gradeLabel(avg) {
   if (avg >= 52) return { text: 'Razoável', cls: 'grade-mid' };
   if (avg >= 40) return { text: 'Fraco', cls: 'grade-low' };
   return { text: 'Desfavorável', cls: 'grade-low' };
+}
+
+function htmlToPlain(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  return (d.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
+/** Resposta em linguagem simples para o cartão principal (pescadores na plataforma). */
+function simpleVerdictWords(avg) {
+  if (avg >= 60) return { word: 'BOM', sub: 'Pelo modelo, é um bom dia para ir pescar na plataforma.', cls: 'simple-good' };
+  if (avg >= 48) return { word: 'MAIS OU MENOS', sub: 'Dá para ir; nem o melhor nem o pior dia.', cls: 'simple-mid' };
+  if (avg >= 38) return { word: 'FRACO', sub: 'O modelo diz que hoje é mais difícil.', cls: 'simple-low' };
+  return { word: 'RUIM', sub: 'Pelo modelo, hoje está desfavorável.', cls: 'simple-bad' };
+}
+
+function renderSimpleAnswer(dateKey, times, scores, dayAvg, isInland, scoreDetails) {
+  const dayIdx = sliceDayIndices(times, dateKey);
+  const wordEl = $('simpleVerdictWord');
+  const subEl = $('simpleVerdictSub');
+  const numEl = $('simpleVerdictNumber');
+  const whyEl = $('simpleWhyBlock');
+  const bestEl = $('simpleBestHour');
+  const titleEl = $('simpleDayTitle');
+  const body = $('simpleAnswerBody');
+  const empty = $('simpleAnswerEmpty');
+
+  if (!wordEl || !body) return;
+
+  if (!dayIdx.length) {
+    body.classList.add('hidden');
+    if (empty) {
+      empty.classList.remove('hidden');
+      empty.textContent = 'Não há dados para este dia.';
+    }
+    const chipFish = $('chipFishActivityVal');
+    const chipIdx = $('chipIndexDayVal');
+    if (chipFish) chipFish.textContent = '—';
+    if (chipIdx) chipIdx.textContent = '—';
+    const mo = $('metricsOverviewBody');
+    const mf = $('metricsFishBody');
+    if (mo) mo.textContent = '';
+    if (mf) mf.textContent = '';
+    return;
+  }
+
+  body.classList.remove('hidden');
+  if (empty) empty.classList.add('hidden');
+
+  if (titleEl) titleEl.textContent = weekdayPt(dateKey);
+
+  const { word, sub, cls } = simpleVerdictWords(dayAvg);
+  wordEl.textContent = word;
+  wordEl.className = 'simple-verdict-word ' + cls;
+  if (subEl) subEl.textContent = sub;
+  if (numEl) {
+    numEl.textContent = `Nota do modelo: ${Math.round(dayAvg)} em 100 (quanto maior, melhor o computador acha o dia).`;
+  }
+
+  const bestGi = dayIdx.reduce((a, b) => (scores[b] > scores[a] ? b : a), dayIdx[0]);
+  const expl = buildHourExplanations(scoreDetails[bestGi] || {}, isInland);
+  const plainLines = expl.map(htmlToPlain).filter(Boolean).slice(0, 2);
+  if (whyEl) {
+    whyEl.innerHTML = plainLines.length
+      ? plainLines.map((t) => `<p class="simple-why-line">Motivo: ${escapeHtml(t)}</p>`).join('')
+      : '<p class="simple-why-line muted">Sem mais detalhes automáticos para a melhor hora.</p>';
+  }
+
+  const goodThreshold = Math.max(52, dayAvg - 2);
+  const goodWins = findContiguousWindows(dayIdx, scores, (s) => s >= goodThreshold)
+    .filter((w) => w.len >= 2)
+    .sort((a, b) => b.avg - a.avg);
+  let bestLine = '';
+  if (goodWins.length) {
+    const w = goodWins[0];
+    const i0 = dayIdx[w.a];
+    const i1 = dayIdx[w.b];
+    bestLine = `Sugestão de horário: entre ${formatHourRange(times[i0], times[i1])} o modelo acha melhor.`;
+  } else {
+    bestLine = `Melhor hora avulsa: por volta das ${formatHourLabel(times[bestGi])}.`;
+  }
+  if (bestEl) bestEl.textContent = bestLine;
+
+  const vals = dayIdx.map((gi) => scores[gi]);
+  const fishAvg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  const fishRounded = Math.round(fishAvg);
+  const dayFish = { ...fishActivityFromScore(fishRounded), avg: fishRounded };
+
+  const chipFish = $('chipFishActivityVal');
+  const chipIdx = $('chipIndexDayVal');
+  if (chipFish) chipFish.textContent = `${dayFish.label} (ref. ${dayFish.avg}/100)`;
+  if (chipIdx) chipIdx.textContent = `${Math.round(dayAvg)}/100`;
+
+  const mo = $('metricsOverviewBody');
+  if (mo) {
+    mo.innerHTML = `<p><strong>${escapeHtml(weekdayPt(dateKey))}</strong> — ${escapeHtml(sub)} Nota média do modelo: <strong>${Math.round(dayAvg)}</strong>/100.</p><p>${escapeHtml(bestLine)}</p><p>Atividade dos peixes no dia (estimativa): <strong>${dayFish.label}</strong> (média de referência ${dayFish.avg}/100).</p>`;
+  }
+
+  const mf = $('metricsFishBody');
+  if (mf) {
+    const topHours = [...dayIdx]
+      .map((gi) => ({ gi, score: scores[gi], t: times[gi] }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+    mf.innerHTML =
+      '<p class="muted small">Melhores horas no modelo (toque nas horas no cartão principal para ver o “porquê”):</p><ol class="metrics-fish-list">' +
+      topHours
+        .map((h) => {
+          const f = fishActivityFromScore(h.score);
+          return `<li><strong>${escapeHtml(formatHourLabel(h.t))}</strong> — índice ${h.score}/100 · peixe (estim.) <span class="fish-pill ${f.cls}">${f.label}</span></li>`;
+        })
+        .join('') +
+      '</ol>';
+  }
 }
 
 function mean(arr) {
@@ -1468,7 +1710,7 @@ function renderIndexWeights(isInland) {
       .map(
         (r) => `
       <div class="weight-row">
-        <span class="weight-label">${r.label}</span>
+        <span class="weight-label">${escapeHtml(r.label)}</span>
         <span class="weight-pct">${r.pct}%</span>
         <div class="weight-track" aria-hidden="true">
           <div class="weight-fill" style="width:${(r.pct / maxPct) * 100}%"></div>
@@ -1481,8 +1723,8 @@ function renderIndexWeights(isInland) {
   `;
 }
 
-function renderSolunarPanel(astro) {
-  const block = $('solunarBlock');
+function renderSolunarPanel(astro, blockId = 'solunarBlock') {
+  const block = $(blockId);
   if (!block) return;
   if (!astro) {
     block.classList.add('hidden');
@@ -1512,8 +1754,8 @@ function renderSolunarPanel(astro) {
   `;
 }
 
-function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland, epagriExtremesByDate) {
-  const block = $('tideTableBlock');
+function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland, epagriExtremesByDate, blockId = 'tideTableBlock') {
+  const block = $(blockId);
   if (!block) return;
   if (isInland) {
     block.classList.add('hidden');
@@ -1527,7 +1769,7 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland, epagriExtre
           .sort((a, b) => a.t.localeCompare(b.t))
           .map(
             (e) =>
-              `<tr><td>${e.hi ? 'Preamar' : 'Baixamar'}</td><td>${e.t.replace(':', 'h')}</td><td>${Number(e.h_m).toFixed(2)} m</td></tr>`
+              `<tr><td>${e.hi ? 'Preamar' : 'Baixamar'}</td><td>${escapeHtml(e.t.replace(':', 'h'))}</td><td>${Number(e.h_m).toFixed(2)} m</td></tr>`
           )
           .join('')
       : '';
@@ -1537,7 +1779,7 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland, epagriExtre
     ? exModel
         .map(
           (e) =>
-            `<tr><td>${e.label}</td><td>${formatHourLabel(e.t)}</td><td>${e.y.toFixed(2)} m</td></tr>`
+            `<tr><td>${escapeHtml(e.label)}</td><td>${escapeHtml(formatHourLabel(e.t))}</td><td>${e.y.toFixed(2)} m</td></tr>`
         )
         .join('')
     : '';
@@ -1581,12 +1823,13 @@ function renderTideTablePanel(dateKey, dayIdx, times, sea, isInland, epagriExtre
   block.innerHTML = officialBlock + modelBlock;
 }
 
-function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroByDay, aligned) {
+function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroByDay, aligned, scoreDetails) {
   const dayIdx = sliceDayIndices(times, dateKey);
   const intro = $('recIntro');
   const verdict = $('recVerdict');
   const periodsEl = $('recPeriods');
   const windowsEl = $('recWindows');
+  const details = scoreDetails || state.scoreDetails || [];
 
   if (!dayIdx.length) {
     intro.textContent = '';
@@ -1595,21 +1838,29 @@ function renderRecommendations(dateKey, times, scores, dayAvg, isInland, astroBy
     windowsEl.innerHTML = '';
     $('solunarBlock')?.classList.add('hidden');
     $('tideTableBlock')?.classList.add('hidden');
+    $('solunarBlockMetrics')?.classList.add('hidden');
+    $('tideTableBlockMetrics')?.classList.add('hidden');
     const mw = $('menuWeights');
     if (mw) mw.innerHTML = '';
     $('menuWeightsPlaceholder')?.classList.remove('hidden');
+    renderSimpleAnswer(dateKey, times, scores, dayAvg, isInland, details);
     return;
   }
 
+  renderSimpleAnswer(dateKey, times, scores, dayAvg, isInland, details);
+
   renderIndexWeights(isInland);
-  renderSolunarPanel(astroByDay?.get(dateKey));
+  const astroDay = astroByDay?.get(dateKey);
+  renderSolunarPanel(astroDay);
+  renderSolunarPanel(astroDay, 'solunarBlockMetrics');
   const epagriMap = state.bundle?.epagriExtremesByDate;
   renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland, epagriMap);
+  renderTideTablePanel(dateKey, dayIdx, times, aligned?.sea || [], isInland, epagriMap, 'tideTableBlockMetrics');
 
   const hasEpagri = epagriMap && epagriMap[dateKey]?.length;
   intro.textContent = hasEpagri
-    ? `Para ${weekdayPt(dateKey)}, na Plataforma Norte — vento, chuva, ondas e Sol/Lua por previsão; maré com extremos da tábua EPAGRI (Balneário Rincão) e curva hora a hora derivada dela para o índice. Não garante pesca.`
-    : `Para ${weekdayPt(dateKey)}, na Plataforma Norte — dados de previsão (vento, chuva, ondas, maré por modelo, Lua e Sol). O índice de 0 a 100 junta esses sinais; não garante pesca.`;
+    ? `Texto extra para quem quer ler tudo: períodos do dia, maré da tábua EPAGRI (Rincão), lua e janelas de tempo. Não garante peixe.`
+    : `Texto extra: o mesmo índice, com maré só do modelo neste dia. Não garante peixe.`;
 
   const periodStats = PERIOD_DEFS.map((pd) => {
     const vals = [];
@@ -1737,7 +1988,7 @@ function renderSummary(dayData, place, dateKey, astroByDay, marineMeta) {
   for (const [label, value] of cells) {
     const div = document.createElement('div');
     div.className = 'summary-cell';
-    div.innerHTML = `<div class="label">${label}</div><div class="value">${value}</div>`;
+    div.innerHTML = `<div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div>`;
     grid.appendChild(div);
   }
 
@@ -1787,11 +2038,18 @@ function renderForecastList(dayData) {
 
 function updateChart(labels, scores, seaNorm) {
   const canvas = $('dayChart');
+  if (!canvas) return;
+  if (typeof Chart === 'undefined') {
+    console.error(
+      '[Pesca] Chart.js não está disponível (CDN bloqueado ou offline). O restante da previsão carrega; só o gráfico falta.'
+    );
+    return;
+  }
   const ctx = canvas.getContext('2d');
   if (state.chart) state.chart.destroy();
 
-  const tickColor = '#8b9cb8';
-  const gridColor = 'rgba(100, 140, 190, 0.12)';
+  const tickColor = '#94a8b8';
+  const gridColor = 'rgba(88, 140, 168, 0.14)';
 
   state.chart = new Chart(ctx, {
     type: 'bar',
@@ -1804,10 +2062,10 @@ function updateChart(labels, scores, seaNorm) {
           data: scores,
           backgroundColor: scores.map((s) =>
             s >= 65
-              ? 'rgba(94, 240, 200, 0.75)'
+              ? 'rgba(94, 224, 192, 0.78)'
               : s >= 45
-                ? 'rgba(94, 184, 255, 0.6)'
-                : 'rgba(255, 138, 138, 0.5)'
+                ? 'rgba(92, 200, 224, 0.62)'
+                : 'rgba(240, 144, 144, 0.52)'
           ),
           borderRadius: 8,
           yAxisID: 'y',
@@ -1816,7 +2074,7 @@ function updateChart(labels, scores, seaNorm) {
           type: 'line',
           label: 'Maré',
           data: seaNorm,
-          borderColor: 'rgba(255, 215, 150, 0.9)',
+          borderColor: 'rgba(232, 184, 118, 0.92)',
           borderDash: [6, 4],
           tension: 0.4,
           pointRadius: 0,
@@ -1832,10 +2090,10 @@ function updateChart(labels, scores, seaNorm) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(12, 18, 32, 0.94)',
-          titleColor: '#f0f4fc',
-          bodyColor: '#c5d4e8',
-          borderColor: 'rgba(100, 140, 200, 0.25)',
+          backgroundColor: 'rgba(8, 20, 30, 0.94)',
+          titleColor: '#eef4f8',
+          bodyColor: '#b8c8d8',
+          borderColor: 'rgba(92, 200, 224, 0.28)',
           borderWidth: 1,
           padding: 14,
           titleFont: { size: 15 },
@@ -1872,7 +2130,7 @@ function updateChart(labels, scores, seaNorm) {
           position: 'right',
           min: 0,
           max: 1,
-          title: { display: true, text: 'Maré', color: '#e8c86a', font: { size: 14 } },
+          title: { display: true, text: 'Maré', color: '#e4b86a', font: { size: 14 } },
           ticks: { display: false },
           grid: { drawOnChartArea: false },
         },
@@ -1908,6 +2166,11 @@ function fillDaySelect(dayData, selected) {
     sel.appendChild(opt);
   }
   if ([...sel.options].some((o) => o.value === selected)) sel.value = selected;
+  if (!sel.options.length) {
+    throw new Error(
+      'Não há dias com horas suficientes para o seletor (sincronização entre maré e previsão). Tente recarregar a página.'
+    );
+  }
 }
 
 async function loadFixedLocation() {
@@ -1964,6 +2227,26 @@ async function loadFixedLocation() {
     };
     state.scoreDetails = scoreDetails;
 
+    if (!state._chartDetailsWired) {
+      state._chartDetailsWired = true;
+      $('detailsChart')?.addEventListener('toggle', (ev) => {
+        const t = ev.target;
+        if (t instanceof HTMLDetailsElement && t.open) {
+          requestAnimationFrame(() => state.chart?.resize());
+        }
+      });
+    }
+
+    if (!state._metricsRailWired) {
+      state._metricsRailWired = true;
+      document.querySelectorAll('[data-metrics-jump]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-metrics-jump');
+          document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
+
     const todayKey = todayDateKeyInTimezone(timezone);
     const defaultDay = dayData.some((d) => d.date === todayKey) ? todayKey : aligned.times[0].slice(0, 10);
     fillDaySelect(dayData, defaultDay);
@@ -1971,7 +2254,7 @@ async function loadFixedLocation() {
     const renderForDate = (dateKey) => {
       const dayRow = dayData.find((d) => d.date === dateKey);
       const dayAvg = dayRow?.avgScore ?? 0;
-      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland, astroByDay, aligned);
+      renderRecommendations(dateKey, aligned.times, scores, dayAvg, inland, astroByDay, aligned, scoreDetails);
       renderSummary(
         dayData,
         { lat, lon, timezone },
@@ -1981,7 +2264,8 @@ async function loadFixedLocation() {
       );
       const { labels, scores: sc, seaNorm } = sliceDay(aligned.times, scores, aligned.sea, dateKey);
       updateChart(labels, sc, seaNorm);
-      renderHourlyList(dateKey, aligned.times, scores, scoreDetails, inland);
+      renderHeroStrip(dateKey, aligned, forecast, timezone);
+      rerenderAllHourlyLists(dateKey, aligned.times, scores, scoreDetails, inland);
     };
 
     $('daySelect').onchange = () => renderForDate($('daySelect').value);
@@ -1990,11 +2274,41 @@ async function loadFixedLocation() {
     renderLiveWeatherPanel(forecast, aligned);
     startLiveWeatherUpdates();
 
-    $('mainContent').classList.remove('hidden');
+    const mainEl = $('mainContent');
+    mainEl.classList.remove('hidden');
+    mainEl.focus({ preventScroll: true });
   } catch (e) {
-    showError(e.message || 'Erro ao carregar os dados.');
+    const msg =
+      e instanceof Error && e.message
+        ? e.message
+        : typeof e === 'string'
+          ? e
+          : 'Erro ao carregar os dados.';
+    console.error('[Pesca] loadFixedLocation:', e);
+    showError(msg);
   } finally {
     $('loading').classList.add('hidden');
+  }
+}
+
+function setMetricsDrawerOpen(open) {
+  const drawer = $('appMetricsDrawer');
+  const backdrop = $('metricsBackdrop');
+  const btn = $('btnMetricsMenu');
+  if (!drawer || !backdrop || !btn) return;
+  if (open) {
+    setDrawerOpen(false);
+    backdrop.classList.remove('hidden');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.setAttribute('aria-hidden', 'false');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('metrics-drawer-open');
+  } else {
+    backdrop.classList.add('hidden');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('metrics-drawer-open');
   }
 }
 
@@ -2003,6 +2317,7 @@ function setDrawerOpen(open) {
   const backdrop = $('drawerBackdrop');
   const btn = $('btnMenu');
   if (!drawer || !backdrop || !btn) return;
+  if (open) setMetricsDrawerOpen(false);
   drawer.setAttribute('aria-hidden', String(!open));
   backdrop.setAttribute('aria-hidden', String(!open));
   btn.setAttribute('aria-expanded', String(open));
@@ -2058,14 +2373,30 @@ document.querySelectorAll('.drawer-nav-btn').forEach((btn) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  const mDrawer = $('appMetricsDrawer');
+  if (mDrawer?.getAttribute('aria-hidden') === 'false') {
+    setMetricsDrawerOpen(false);
+    return;
+  }
   const drawer = $('appDrawer');
   if (drawer?.getAttribute('aria-hidden') === 'false') setDrawerOpen(false);
 });
 
+$('btnMetricsMenu')?.addEventListener('click', () => {
+  const d = $('appMetricsDrawer');
+  const isOpen = d?.getAttribute('aria-hidden') === 'false';
+  setMetricsDrawerOpen(!isOpen);
+});
+
+$('btnCloseMetrics')?.addEventListener('click', () => setMetricsDrawerOpen(false));
+
+$('metricsBackdrop')?.addEventListener('click', () => setMetricsDrawerOpen(false));
+
 $('hourlySort').addEventListener('change', () => {
   const b = state.bundle;
   if (!b) return;
-  renderHourlyList($('daySelect').value, b.aligned.times, b.scores, b.scoreDetails, b.isInland);
+  const dk = $('daySelect')?.value;
+  if (dk) rerenderAllHourlyLists(dk, b.aligned.times, b.scores, b.scoreDetails, b.isInland);
 });
 
 $('btnRefreshLiveWeather')?.addEventListener('click', () => {
@@ -2083,3 +2414,4 @@ $('btnRefreshLiveWeather')?.addEventListener('click', () => {
 });
 
 loadFixedLocation();
+initSocialApp();

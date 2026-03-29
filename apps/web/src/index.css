@@ -1,0 +1,214 @@
+:root {
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  color: #e8f4f8;
+  background: #0a2530;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+a {
+  color: #7dd3fc;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.feed-main {
+  max-width: 26rem;
+}
+
+.feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feed-post {
+  margin-bottom: 1rem;
+}
+
+.feed-post-head {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.feed-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pinned-card {
+  position: relative;
+}
+
+.pinned-toggle {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #7dd3fc;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.simple-verdict-word {
+  font-size: 1.65rem;
+  font-weight: 800;
+  margin: 0.35rem 0 0.5rem;
+  line-height: 1.15;
+}
+
+.simple-good {
+  color: #bbf7d0;
+}
+.simple-mid {
+  color: #fde68a;
+}
+.simple-low {
+  color: #fed7aa;
+}
+.simple-bad {
+  color: #fecaca;
+}
+
+.verdict-chip {
+  font-weight: 800;
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pinned-marquee {
+  overflow-x: auto;
+  max-width: 100%;
+  padding-top: 1.5rem;
+}
+
+.pinned-marquee .marquee-track {
+  display: inline-block;
+  white-space: nowrap;
+  padding-bottom: 0.15rem;
+}
+
+/* Letreiro suave só quando o utilizador não pediu movimento reduzido */
+@media (prefers-reduced-motion: no-preference) {
+  .pinned-min .marquee-track {
+    animation: feed-marquee 22s ease-in-out infinite alternate;
+  }
+
+  @keyframes feed-marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-12%);
+    }
+  }
+}
+
+.linkish {
+  background: transparent;
+  border: none;
+  color: #7dd3fc;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  padding: 0;
+}
+
+.smallprint {
+  font-size: 0.78rem;
+}
+
+.comment-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.comment-list li {
+  margin-bottom: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.admin-nav {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* QR carteirinha: fundo claro para leitores 1D/2D */
+.member-checkin-qr {
+  display: inline-block;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.65rem;
+  background: #fff;
+  border-radius: 12px;
+  line-height: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.member-checkin-qr img {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  height: auto;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+  border: none;
+  padding: 0.6rem 1rem;
+  background: #0ea5e9;
+  color: #041a24;
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.muted {
+  color: rgba(232, 244, 248, 0.72);
+  font-size: 0.9rem;
+}
+
+.err {
+  color: #fecaca;
+}
+
+.ok {
+  color: #bbf7d0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

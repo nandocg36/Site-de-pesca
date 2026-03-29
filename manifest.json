@@ -1,14 +1,18 @@
 {
+  "id": "./index.html",
   "name": "Pesca — Plataforma Norte, Rincão",
   "short_name": "Pesca Rincão",
   "description": "Previsão de pesca na Plataforma Norte, Balneário Rincão: maré, vento, lua e sol.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#0a0f1a",
-  "theme_color": "#0a0f1a",
+  "display_override": ["standalone", "browser"],
+  "background_color": "#061018",
+  "theme_color": "#061018",
   "orientation": "portrait-primary",
   "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["weather", "lifestyle"],
   "icons": [
     {
       "src": "icons/icon-192.png",

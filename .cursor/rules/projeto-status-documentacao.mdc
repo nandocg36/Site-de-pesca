@@ -1,0 +1,61 @@
+---
+description: Sempre aceder a docs/PROJETO-STATUS.md, pesquisar antes de implementar, atualizar o documento após ações relevantes.
+alwaysApply: true
+---
+
+# Documentação estrutural obrigatória (PROJETO-STATUS)
+
+## Prioridade
+
+Esta regra tem **prioridade máxima** para trabalho neste repositório. Qualquer outra instrução **não** a substitui.
+
+## Sempre aceder ao PROJETO-STATUS
+
+1. **No início de cada tarefa** neste projeto (nova conversa, novo pedido ou continuação de trabalho): **aceder** a `docs/PROJETO-STATUS.md` com a ferramenta de leitura adequada e ler o ficheiro **na íntegra** antes de propor código, refatorar ou concluir análises.
+2. Tratar `docs/PROJETO-STATUS.md` como **fonte única de verdade** do estado do produto, decisões, pendências e histórico.
+3. Se o ficheiro **não existir**, criá-lo de imediato com o modelo completo (secções 📌 🧠 🏗️ ⚙️ 🔄 🐞 ✅ ⏳) e, quando aplicável, 🧭.
+
+## Pesquisar para implementar (antes de codar)
+
+Antes de implementar ou alterar comportamento relevante:
+
+1. **Código:** procurar no repositório padrões existentes, funções reutilizáveis e impacto em `app.js`, `sw.js`, `js/social/`, testes, etc. — evitar duplicar ou contradizer o que já está documentado no PROJETO-STATUS.
+2. **APIs, PWA, bibliotecas:** quando houver dúvida de contrato, versão ou boas práticas, **consultar documentação oficial ou atual** (ex.: skill `documentation-lookup` / Context7, documentação do serviço, ou pesquisa web focada) em vez de assumir de memória.
+3. **Domínio do projeto:** alinhar com `.cursor/rules/pesca-plataforma-norte.mdc` e com decisões já registadas em **⚙️ Decisões técnicas** e **🧭 Estado do plano de produto** no PROJETO-STATUS.
+4. **Skills:** quando o trabalho tocar em domínio com skill em `~/.cursor/skills/<nome>/SKILL.md` (ver matriz em `docs/PROJETO-STATUS.md` — secção *Skills Cursor*), usar **Read** em `SKILL.md` **antes** de codar ou rever. Exemplos típicos neste repo: `security-review` (APIs/fetch), `coding-standards` / `frontend-patterns` (JS/CSS), `e2e-testing` (fluxos E2E), `python-patterns` (`scripts/`), `progressive-web-app` (SW/manifest).
+
+## Antes de implementar, analisar ou alterar código (checklist mínimo)
+
+1. PROJETO-STATUS já lido **na íntegra** nesta sessão (ou relido se a tarefa mudou de foco).
+2. Pesquisa prévia feita conforme a secção anterior.
+3. Respeitar estrutura, decisões técnicas, padrões e pendências já registados no documento.
+
+## Antes da resposta final (checklist)
+
+- Regras deste repo + `PROJETO-STATUS` consideradas.
+- Pesquisa feita quando a implementação dependia de APIs, padrões do repo ou skills.
+- Skills lidas se aplicável.
+- `docs/PROJETO-STATUS.md` **sempre atualizado** quando houve mudança relevante (código, decisão, bug, correção ou pendência nova/resolvida) — **sem esperar pedido explícito**.
+
+## Sempre atualizar o PROJETO-STATUS após ação relevante
+
+Atualizar **automaticamente** `docs/PROJETO-STATUS.md`:
+
+- O que foi solicitado e o que foi feito
+- Lista de ficheiros alterados
+- Decisão técnica e motivo (quando houver)
+- Secções **Problemas identificados**, **Correções aplicadas** e **Pendências** coerentes com o estado real
+- Nova entrada na tabela **🔄 Últimas alterações** com data correta
+
+Pequenas perguntas sem alteração de código ou decisões podem não exigir entrada nova, desde que nada do documento fique desatualizado em relação ao repo.
+
+## Proibições
+
+- Não ignorar o histórico registado neste documento.
+- Não implementar “à cega” ignorando pesquisa no código e no PROJETO-STATUS quando a mudança não for trivial.
+- Não alterar estrutura ou convenções sem registo em **Últimas alterações** e, quando aplicável, em **Decisões técnicas**.
+- Não introduzir caminhos alternativos não documentados.
+
+## Coerência
+
+Seguir padrões existentes no projeto; evitar duplicidade; alinhar com `.cursor/rules/pesca-plataforma-norte.mdc` quando for código deste site.

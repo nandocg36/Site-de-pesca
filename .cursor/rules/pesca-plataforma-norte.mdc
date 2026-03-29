@@ -7,10 +7,16 @@ globs:
   - "sw.js"
   - "manifest.json"
   - "data/**"
+  - "apps/web/**"
+  - "packages/fishing-core/**"
 alwaysApply: false
 ---
 
 # Site-de-pesca — regras do projeto
+
+## Documentação e fluxo de trabalho
+
+Para qualquer alteração nestes ficheiros: cumprir `.cursor/rules/projeto-status-documentacao.mdc` — **ler** `docs/PROJETO-STATUS.md` **na íntegra**, **pesquisar** no repo e em docs oficiais quando necessário **antes** de implementar, e **atualizar** o PROJETO-STATUS após mudanças relevantes.
 
 ## O que é
 
@@ -20,6 +26,7 @@ PWA estática (HTML + CSS + JS vanilla) focada num **único ponto**: **Plataform
 
 - `index.html` — estrutura, textos legais/informativos (maré EPAGRI vs CHM), drawer de ajuda, registo do service worker.
 - `app.js` — toda a lógica: fetch das APIs, agregação, índice hora a hora, gráfico (Chart.js), UI.
+- `js/tide-epagri.js` — interpolação maré EPAGRI (extremos → série horária); testada em `tests/`.
 - `styles.css` — visual e componentes.
 - `sw.js` — cache/offline da PWA.
 - `data/epagri-tides-2026.json` — extremos de maré extraídos da tábua EPAGRI (Siré); o app interpola curva hora a hora entre extremos.

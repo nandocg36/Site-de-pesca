@@ -1,0 +1,10 @@
+{
+  "name": "Pesca Plataforma Norte",
+  "short_name": "Pesca PN",
+  "description": "Comunidade e condições de pesca — Plataforma Norte",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a2530",
+  "theme_color": "#0d3b4a",
+  "lang": "pt-BR"
+}

@@ -1,2 +1,11 @@
 .DS_Store
 *.log
+node_modules/
+.env
+.env.local
+apps/web/dist
+packages/fishing-core/dist
+
+# Pastas / ficheiros locais experimentais (não fazem parte do monorepo)
+meu-projeto/
+cpf.json
